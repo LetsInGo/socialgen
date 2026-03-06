@@ -1,0 +1,514 @@
+# Best Prompts for Social Background Images in Nano Banana
+
+## Executive summary
+
+Nano Banana is Google’s family of native image generation and editing models built on Gemini. In the Gemini API, “Nano Banana” refers to multiple model tiers (notably Gemini 2.5 Flash Image for speed, Gemini 3.1 Flash Image Preview as Nano Banana 2, and Gemini 3 Pro Image Preview as Nano Banana Pro), each suited to different production needs. citeturn2view1turn15view0turn2view2
+
+For social background images (banners, story backgrounds, behind-text backdrops), the most reliable prompt strategy is to treat the prompt as a **structured creative brief**: define style/medium, setting, and composition (especially negative space for text overlays), then add constraints (no text/logos/watermarks) and the required aspect ratio. Google’s own guidance emphasizes that **more detail gives you more control**, and explicitly recommends prompting for **production-ready specs** like aspect ratio and format (“widescreen backdrop” or “vertical social post”). citeturn12view0turn3view1
+
+Aspect ratio control is best enforced via the API where possible using `image_config.aspect_ratio` (tokens like `"16:9"`, `"9:16"`, `"1:1"`, etc.). When you can’t set `aspect_ratio` (for example, Firebase AI Logic currently notes this limitation), you should encode the ratio directly in the prompt using the explicit token format (“16:9 aspect ratio”) plus the target use label (“vertical social post”). citeturn16view0turn15view0turn3view1
+
+Color and brand control works best when you (a) name a **tight palette** (primary/secondary/accent), (b) specify **dominance** (“~70% background in…”), and (c) make the composition support that dominance (large gradient field, restrained accents). Official Google examples frequently request a “color palette” / “color scheme,” and the Nano Banana image-generation docs also provide a background-oriented pattern (“Minimalist & negative space design”) that is directly applicable to social backdrops. citeturn16view1turn16view2turn5view0
+
+The report below provides: reusable prompt templates, 24 copy/paste example prompts across industries/ratios/colors/cities/styles, a comparison table of prompt variants and expected outcomes, and a short test checklist with evaluation metrics.
+
+## What Nano Banana is and what the official prompt surface supports
+
+### Model family and when it matters for “social background” work
+
+Google positions Nano Banana models as native image generation/editing capabilities under Gemini (multiple “tiers” with different strengths), and the Gemini API documentation explicitly recommends choosing the model based on use case. Nano Banana Pro (Gemini 3 Pro Image Preview) is oriented toward professional asset production and complex instructions (including high-fidelity text), while Nano Banana (Gemini 2.5 Flash Image) is optimized for speed/efficiency and lower-latency workflows. citeturn2view1turn2view2
+
+For social background images specifically, model choice typically follows a simple decision rule derived from official positioning:
+- If you need **design-precise layouts** (especially embedded typography inside the image), Nano Banana Pro is generally the safest choice because it’s described as the professional “asset production” model with stronger text rendering. citeturn16view2turn16view3turn2view1  
+- If you need **fast iteration on multiple background variations**, Nano Banana (2.5 Flash Image) or Nano Banana 2 (3.1 Flash Image Preview) is often more cost/latency efficient. citeturn16view3turn2view1turn2view2
+
+### Official guidance on prompt structure for images
+
+Google DeepMind’s Nano Banana prompt guide frames prompts as a set of controllable “dimensions”: **Style**, **Subject**, **Setting**, **Action**, and **Composition**, and stresses the practical point that adding detail increases alignment with what you imagine. citeturn12view0turn12view2
+
+For social backgrounds, **composition** is the critical lever: you’re usually optimizing for a readable overlay region (negative space) and a predictable focal area. This is also reinforced by Google’s Gemini API image-generation documentation, which explicitly calls out “Minimalist & negative space design” as “excellent for creating backgrounds … where text will be overlaid,” and provides a reusable template. citeturn16view1
+
+### Aspect ratio control: official “tokens” and exact syntax
+
+You have two “officially grounded” control paths:
+
+If you are calling via the Gemini API, you can directly set `image_config.aspect_ratio` (and for some models `image_size`). The docs list supported aspect ratio tokens, including: `1:1`, `2:3`, `3:2`, `3:4`, `4:3`, `4:5`, `5:4`, `9:16`, `16:9`, and `21:9`. citeturn16view0turn16view3turn4view1
+
+If you are writing prompts in an environment where you can’t set explicit aspect ratio configs (Firebase AI Logic currently calls this out), you should encode aspect ratio in the text prompt. DeepMind’s prompt guide explicitly recommends prompting for “your desired aspect ratio (like 4:3, 1:1, or 9:16)” and adding a format cue such as “widescreen backdrop” or “vertical social post.” citeturn3view1turn15view0
+
+## Encoding the input dimensions in prompts for social background images
+
+This section answers the “how do I encode each input dimension?” question as a practical grammar you can reuse. The key idea is to **separate creative description from constraints** so the model can “compose” the scene first, then obey guardrails.
+
+```mermaid
+flowchart TD
+  A[Inputs] --> B[Prompt brief]
+  A --> A1[Ratio]
+  A --> A2[Industry]
+  A --> A3[Brand colors]
+  A --> A4[City]
+  A --> A5[Style]
+
+  B --> C[Scene description]
+  C --> C1[Setting: city + landmarks + time/weather]
+  C --> C2[Motifs: industry visual vocabulary]
+  C --> C3[Style: medium + mood + abstraction + camera/lighting]
+
+  B --> D[Composition for social background]
+  D --> D1[Text-safe negative space region]
+  D --> D2[Focal point placement + depth/blur]
+  D --> D3[Contrast plan for readability]
+
+  B --> E[Constraints]
+  E --> E1[Aspect ratio token]
+  E --> E2[Palette + dominance]
+  E --> E3[No text/logos/watermarks]
+  E --> E4[Clean background, export-ready]
+
+  E --> F[Generate] --> G[Evaluate] --> H[Iterate small changes] --> F
+```
+
+The “generate → evaluate → iterate” loop is aligned with Google’s emphasis that prompting is iterative and you should refine until you get what you want. citeturn12view0turn13view0
+
+### Ratio encoding: exact syntax and tokens
+
+**Recommended prompt-level syntax (works across Gemini UI + API-based tools):**
+- Put the ratio in a compact, unambiguous form near the end:  
+  `"... 16:9 aspect ratio, widescreen backdrop"` or `"... 9:16 aspect ratio, vertical social post"`  
+  This is consistent with DeepMind’s “prompt for production-ready specs” guidance. citeturn3view1
+- If you’re using API configs, still consider leaving the ratio in the text prompt as a redundancy when the prompt also includes layout constraints (safe area). The API remains the strongest enforcement mechanism because it sets `image_config.aspect_ratio` explicitly. citeturn16view0turn4view0
+
+**Officially supported aspect ratio tokens (Gemini API `aspect_ratio`):**  
+`"1:1"`, `"2:3"`, `"3:2"`, `"3:4"`, `"4:3"`, `"4:5"`, `"5:4"`, `"9:16"`, `"16:9"`, `"21:9"`. citeturn16view3turn2view1
+
+**Background-specific composition tip tied to ratio:**  
+Google’s own “negative space background” template is ratio-agnostic—meaning you can keep composition rules (like “subject in bottom-right; large empty canvas”) and swap only the aspect ratio token. citeturn16view1
+
+### Industry encoding: mapping inputs to motifs and vocabulary
+
+Google’s official guidance doesn’t prescribe industry-specific motif dictionaries, but it does recommend being explicit about **what you want to see** in subject/setting and using detailed prompts to increase control. citeturn12view0turn12view2
+
+In practice, industry is best encoded as a **motif bundle**: 2–4 concrete objects/materials + 1–2 abstract patterns + a tone. Keep the motif bundle subtle because these are backgrounds (not hero illustrations).
+
+A rigorous way to encode “industry” is:
+
+- Write `[Industry] brand background` + a short “visual metaphor” clause.  
+- Add 2–3 “prop” nouns and 2–3 “material/texture” nouns.  
+- Add 1–2 “diagram/pattern” nouns if you want an abstract techy feel, or 1–2 “fabric/light” nouns for lifestyle/fashion.
+
+Examples of motif bundles you can reuse (recommendations; adapt as needed):
+- Tech/SaaS: “abstract network lines,” “soft gradient mesh,” “glassmorphism panels,” “thin circuit traces,” “clean UI grid.”
+- Cybersecurity: “subtle hex-grid,” “encrypted glyph texture (abstract, not readable),” “dark glossy materials,” “secure vault lighting.”
+- Finance/Fintech: “calm geometric grid,” “subtle market-chart waves (non-numeric),” “polished stone/glass,” “architectural columns.”
+- Healthcare/Biotech: “soft clinical light,” “bokeh microscopy shapes,” “clean white/teal palette,” “gentle organic curves.”
+- Fashion/Luxury: “editorial studio backdrop,” “fabric folds,” “specular highlights,” “runway light bars,” “minimal set design.”
+- Food & beverage: “macro texture,” “steam haze,” “ceramic/wood,” “warm appetizing light,” “bokeh café ambience.”
+
+To keep this grounded in official best practices, treat these as **detail tokens** you plug into the “Style / Setting / Composition” structure DeepMind recommends. citeturn12view0turn12view2
+
+### Brand colors encoding: notation and dominance enforcement
+
+**What official docs support directly:** Google’s Gemini image-generation docs repeatedly use phrases like “color palette,” “color scheme,” and “palette,” indicating that describing palette intent is a supported and common pattern. citeturn5view0turn16view2turn5view3
+
+**Recommended color notation in prompts (robust in practice):**
+- Use **human-readable color names** plus **hex** in parentheses where possible; the name provides semantic grounding and the hex provides precision when the model/toolchain recognizes it. (Hex-code certainty is not guaranteed; treat it as a hint unless your tool documents it explicitly as supported.)
+- Encode palette as a small, ranked list:
+  - Primary (dominant): `electric blue (#0A84FF)`
+  - Secondary: `deep navy (#0B1F3B)`
+  - Accent: `warm coral (#FF5A5F)`
+
+**How to enforce dominance (prompt mechanics):**
+- Add a quantified dominance rule (heuristic) as a constraint line, e.g.,  
+  “Background should be ~70% primary color gradient; accents limited to ~10% coral; avoid additional saturated hues.”
+- Use a composition choice that makes dominance easy: “vast empty gradient canvas” (matches Google’s negative space template). citeturn16view1
+- Apply a known color-hierarchy heuristic such as the 60-30-10 rule (dominant/secondary/accent) as a **guideline**, not a law. This is widely taught as a practical balance rule in design education. citeturn10search18
+
+**Legibility note for overlays:** If you plan to place text on top later, enforce a “quiet” text-safe region and ensure foreground text will meet minimum contrast standards. WCAG technique guidance calls for at least a 4.5:1 contrast ratio between text and background for normal text. citeturn10search3turn10search7
+
+### City encoding: landmarks, skyline, lighting, cultural cues
+
+Google’s prompt guide explicitly recommends specifying setting and cultural cues when localizing (“regional cultural cues”) and also encourages using real-world locations/eras in prompts. citeturn12view0turn3view1
+
+A city background prompt is strongest when you encode:
+- **Anchor**: city name + one unmistakable landmark or skyline feature.
+- **Context**: neighborhood/river/coastline + street furniture (subway entrances, trams, canals).
+- **Lighting**: time-of-day + weather + color temperature (golden hour vs neon night).
+- **Cultural cues**: subtle signage style (not readable text), architectural style, typical materials.
+
+Example encoding pattern:
+“Tokyo skyline with Tokyo Tower silhouette; rainy neon reflections; Shibuya-style crosswalk vibe; cool blue/purple gels; minimal readable text.”
+
+If you want the model to *avoid* generating readable signage (common in city scenes), put “no readable text / no letters” in constraints. For tasks where you do want text, DeepMind advises enclosing exact text in quotation marks to improve precision. citeturn3view1turn16view2
+
+### Style encoding: art styles, photography terms, mood, abstraction level
+
+Official guidance encourages being explicit about whether you want a photo, an illustration, or a specific medium (“watercolor,” etc.), and using composition/camera language (wide shot, close-up, low angle). citeturn12view0turn8view0
+
+A robust “style line” for social backgrounds typically includes:
+- Medium: `photorealistic studio photo` / `flat vector illustration` / `isometric 3D render`
+- Mood: `calm, premium, modern` / `energetic, playful` / `cinematic, noir`
+- Abstraction: `minimal abstract` vs `high-detail photoreal`
+- Camera (if photographic): `wide-angle`, `shallow depth of field`, `soft bokeh`, `tilt-shift`, etc. (Vertex/Imagen guidance lists common photography modifiers; the same vocabulary generally transfers well to Gemini image prompting). citeturn8view4turn8view0
+
+For social backgrounds where text overlays happen in a design tool later, you usually want **controlled abstraction**: enough visual interest to feel branded, but not so much detail that text becomes unreadable. This aligns with established design guidance that negative space provides “breathing room” and improves clarity/hierarchy. citeturn10search1turn16view1
+
+## Prompt templates and example prompts
+
+### Concise prompt templates adaptable to inputs
+
+Template for minimalist branded background with text-safe space (recommended default). This is directly inspired by Google’s negative-space background pattern, extended with city/brand constraints. citeturn16view1turn3view1
+
+```text
+Create a {RATIO} social background image (a {FORMAT_LABEL}) for a {INDUSTRY} brand.
+Setting: {CITY}, featuring {LANDMARKS/SKYLINE_CUES}. {TIME_OF_DAY} lighting, {WEATHER} atmosphere.
+Composition: large clean negative space on the {SAFE_SIDE} for headline text; focal elements clustered on the {FOCAL_SIDE}; background kept low-detail.
+Color palette: primary {PRIMARY_COLOR_NAME} ({PRIMARY_HEX}) dominant; secondary {SECONDARY_COLOR} ({SECONDARY_HEX}); accent {ACCENT_COLOR} ({ACCENT_HEX}) used sparingly.
+Style: {STYLE_WORDS}. Camera/lighting: {CAMERA_TERMS}, {LIGHTING_TERMS}.
+Constraints: no readable text, no logos, no branding marks, no watermark; clean edges; export-ready.
+{RATIO} aspect ratio.
+```
+
+Template for abstract gradient + pattern (high palette fidelity; low clutter).
+
+```text
+Generate an abstract branded background for social media.
+A vast gradient mesh field dominated by {PRIMARY_COLOR_NAME} ({PRIMARY_HEX}), with subtle geometric {INDUSTRY_MOTIF_PATTERN} overlays.
+Include a faint {CITY} skyline silhouette or landmark outline as a secondary layer (minimal detail).
+Leave the {SAFE_SIDE} 40% of the frame as smooth low-noise negative space for overlay text.
+Style: modern minimal, premium, high contrast control, no grain unless specified.
+Constraints: no readable text, no logos, no watermarks. {RATIO} aspect ratio, {FORMAT_LABEL}.
+```
+
+Template for photographic city lifestyle background (when the brand wants realism).
+
+```text
+A photo-style social background image shot in {CITY} with {LANDMARK/NEIGHBORHOOD_CUE} in the distance.
+Foreground: soft bokeh + shallow depth of field to create a clean text-safe region.
+Lighting: {LIGHTING} with color grading biased toward {PRIMARY_COLOR_NAME} ({PRIMARY_HEX}) and {SECONDARY_COLOR} ({SECONDARY_HEX}); accent hints of {ACCENT_COLOR}.
+Mood: {MOOD}. Composition: {SAFE_SIDE} negative space reserved for copy.
+Constraints: no readable signs, no logos, no text. {RATIO} aspect ratio, {FORMAT_LABEL}.
+```
+
+### Example prompts catalog
+
+All examples below intentionally include: (a) explicit ratio token, (b) negative-space layout for overlays, (c) palette with hex, (d) city cues, and (e) style/mood terms, consistent with official guidance to be detailed and to prompt production-ready specs like aspect ratio and format. citeturn12view0turn3view1turn16view1
+
+**Prompt 1 — Tech, 16:9, San Francisco, abstract gradient mesh**  
+```text
+Create a 16:9 social background image (widescreen backdrop) for a modern SaaS analytics brand.
+Setting: San Francisco, subtle Golden Gate Bridge silhouette in the far background haze, minimal detail.
+Composition: 45% smooth negative space on the right for headline text; focal abstract shapes on the left with a clean UI-grid feel.
+Color palette: primary electric blue (#0A84FF) dominant; secondary midnight navy (#0B1F3B); accent mint (#3DDC97) sparingly.
+Style: abstract gradient mesh + soft glassmorphism panels, premium, minimal, no grain.
+Constraints: no readable text, no logos, no watermark. 16:9 aspect ratio.
+```
+
+**Prompt 2 — Cybersecurity, 1:1, London, dark premium**  
+```text
+Create a 1:1 square social background image for a cybersecurity company.
+Setting: London at night, faint outline of Tower Bridge and a modern glass skyline, light mist.
+Composition: centered calm negative space in the upper-middle for overlay text; subtle hex-grid pattern framing the edges.
+Color palette: primary near-black graphite (#0E0F14) dominant; secondary deep teal (#00796B); accent signal amber (#FFC107) as tiny highlights.
+Style: cinematic, high-end, low-key lighting, controlled reflections, minimal noise.
+Constraints: no readable text, no logos, no watermark. 1:1 aspect ratio.
+```
+
+**Prompt 3 — Finance, 16:9, New York City, editorial minimal**  
+```text
+Create a 16:9 social background image for a fintech brand.
+Setting: New York City skyline at blue hour, recognizable silhouette of One World Trade Center in the distance, clean atmosphere.
+Composition: large smooth negative space on the left for headline; city lights and abstract market-wave shapes clustered on the right.
+Color palette: primary deep navy (#0A1F44) dominant; secondary cool gray (#E6E8EE); accent emerald (#00C853) minimal.
+Style: editorial photo + subtle vector overlay (non-numeric chart waves), premium, minimal.
+Constraints: no readable signs, no numbers, no logos, no watermark. 16:9 aspect ratio.
+```
+
+**Prompt 4 — Luxury fashion, 4:5, Paris, studio + fabric folds**  
+```text
+Create a 4:5 social post background for a luxury fashion brand.
+Setting: Paris, a soft-focus Eiffel Tower silhouette far in the background, early morning haze.
+Composition: minimalist studio-like backdrop with elegant fabric folds in the lower-right; top-left kept as clean negative space for copy.
+Color palette: primary warm ivory (#F7F1E8) dominant; secondary charcoal (#1A1A1A); accent gold (#C8A24A) very restrained.
+Style: high-fashion editorial, soft diffused lighting, clean gradients, minimal texture.
+Constraints: no text, no logos, no watermark. 4:5 aspect ratio.
+```
+
+**Prompt 5 — Streetwear, 9:16, Tokyo, neon but text-safe**  
+```text
+Create a 9:16 vertical social background (story format) for a streetwear brand.
+Setting: Tokyo night street with neon reflections on wet pavement; subtle Tokyo Tower silhouette; Shibuya vibe without readable signage.
+Composition: bottom 35% smooth dark negative space for caption overlays; neon reflections and bokeh lights concentrated in the upper half.
+Color palette: primary neon magenta (#FF2D95) and electric cyan (#00D9FF) with dominant deep black (#07070A); accent white (#F5F7FF) minimal.
+Style: cinematic night photography, shallow depth of field, bokeh, glossy reflections.
+Constraints: no readable text, no logos, no watermark. 9:16 aspect ratio.
+```
+
+**Prompt 6 — Healthcare, 16:9, Boston, calming clean**  
+```text
+Create a 16:9 social background image for a healthcare / wellness brand.
+Setting: Boston, soft waterfront skyline suggestion with gentle morning light, minimal landmark detail.
+Composition: 50% clean negative space on the right; left side features soft organic curves reminiscent of healthcare icons (abstract).
+Color palette: primary clean white (#F8FAFC) dominant; secondary soothing teal (#2CBBC3); accent soft lavender (#B8A4FF) minimal.
+Style: minimal, airy, modern, subtle gradient, no hard edges.
+Constraints: no text, no logos, no watermark. 16:9 aspect ratio.
+```
+
+**Prompt 7 — Biotech, 1:1, San Diego, microscopy-inspired**  
+```text
+Create a 1:1 square background for a biotech brand.
+Setting: San Diego coastal light as a soft backdrop; abstract sea horizon.
+Composition: centered negative space circle for overlay text; surrounding ring made of abstract microscopy bokeh shapes (not literal cells).
+Color palette: primary ocean teal (#007C91) dominant; secondary white (#F5F9FF); accent lime (#B6FF3B) sparingly.
+Style: clean scientific aesthetic, soft focus, gentle depth, minimal clutter.
+Constraints: no text, no logos, no watermark. 1:1 aspect ratio.
+```
+
+**Prompt 8 — Education, 16:9, Chicago, friendly vector**  
+```text
+Create a 16:9 widescreen background for an education / e-learning brand.
+Setting: Chicago skyline silhouette (Willis Tower outline) at sunrise, simplified.
+Composition: large negative space in the center for title; playful geometric “learning blocks” clustered at the bottom corners.
+Color palette: primary sky blue (#4DA3FF) dominant; secondary warm sand (#FFE7B3); accent coral (#FF6B6B) minimal.
+Style: flat vector illustration, clean shapes, subtle paper texture, minimal detail.
+Constraints: no readable text, no logos, no watermark. 16:9 aspect ratio.
+```
+
+**Prompt 9 — Gaming, 9:16, Los Angeles, synthwave**  
+```text
+Create a 9:16 vertical social background for a gaming brand.
+Setting: Los Angeles at night, palm silhouettes and distant skyline glow, minimal realism.
+Composition: top area has stylized neon horizon; bottom 40% is smooth dark gradient for overlay text.
+Color palette: primary deep purple (#2B145A) dominant; secondary hot pink (#FF3DA6); accent neon orange (#FF7A00) sparingly.
+Style: synthwave illustration, light film grain optional, sharp neon edges, retro-futuristic.
+Constraints: no readable text, no logos, no watermark. 9:16 aspect ratio.
+```
+
+**Prompt 10 — Real estate, 16:9, Miami, bright coastal modern**  
+```text
+Create a 16:9 background for a real estate brand specializing in coastal homes.
+Setting: Miami, Art Deco pastel cues and ocean light, minimal building detail.
+Composition: 45% clean negative space on the left; right side has soft-focus architectural lines and palm shadows.
+Color palette: primary soft aqua (#6EE7F2) dominant; secondary white (#FFFFFF); accent sunrise coral (#FF6F61) minimal.
+Style: lifestyle photo-inspired, soft shadows, airy, minimal clutter.
+Constraints: no text, no logos, no watermark. 16:9 aspect ratio.
+```
+
+**Prompt 11 — Hospitality, 4:3, Singapore, premium modern**  
+```text
+Create a 4:3 social background image for a boutique hotel brand.
+Setting: Singapore skyline suggestion with Marina Bay Sands silhouette, sunset reflections.
+Composition: upper-left kept clean for overlay; lower-right has warm bokeh lights and subtle water reflections.
+Color palette: primary deep jade (#0B3B2E) dominant; secondary warm cream (#FFF1D6); accent gold (#D4AF37) minimal.
+Style: premium travel photography, shallow depth of field, cinematic sunset grading.
+Constraints: no readable text, no logos, no watermark. 4:3 aspect ratio.
+```
+
+**Prompt 12 — Nonprofit, 1:1, Nairobi, optimistic minimal**  
+```text
+Create a 1:1 square background for a nonprofit focused on community impact.
+Setting: Nairobi skyline silhouette with soft sunrise and subtle acacia tree outline (minimal detail).
+Composition: central negative space for messaging; gentle abstract pattern around the border.
+Color palette: primary warm white (#FFF8EE) dominant; secondary deep green (#1B5E20); accent sun orange (#FF9800) sparingly.
+Style: minimal illustration, warm optimistic tone, soft gradients.
+Constraints: no text, no logos, no watermark. 1:1 aspect ratio.
+```
+
+**Prompt 13 — Climate/energy, 16:9, Copenhagen, clean Scandinavian**  
+```text
+Create a 16:9 background for a renewable energy brand.
+Setting: Copenhagen waterfront vibe with wind turbine silhouettes and modern architecture hints, calm daylight.
+Composition: strong negative space on the right; turbines and abstract energy-wave lines on the left, minimal detail.
+Color palette: primary cool white (#F4F7FB) dominant; secondary Nordic blue (#2F6FED); accent fresh green (#2EE59D) minimal.
+Style: Scandinavian minimal, clean vector + soft photo blend, subtle textures.
+Constraints: no text, no logos, no watermark. 16:9 aspect ratio.
+```
+
+**Prompt 14 — Automotive, 21:9, Berlin, cinematic motion**  
+```text
+Create a 21:9 ultrawide social banner background for an automotive brand.
+Setting: Berlin at night, modern city light trails, subtle Brandenburg Gate silhouette far background (very minimal).
+Composition: center band kept smooth for overlay; motion blur light trails along the bottom edge for speed feel.
+Color palette: primary black (#0B0D10) dominant; secondary steel gray (#8A93A3); accent red (#FF1744) sparingly.
+Style: cinematic long-exposure photography, glossy, high contrast control.
+Constraints: no readable text, no logos, no watermark. 21:9 aspect ratio.
+```
+
+**Prompt 15 — Food & beverage, 4:5, New Orleans, warm texture but text-safe**  
+```text
+Create a 4:5 Instagram-style background for a coffee brand.
+Setting: New Orleans café mood, warm ambient light, subtle wrought-iron pattern (abstract).
+Composition: top half is clean warm gradient for overlay; bottom corners have soft bokeh and steam haze texture.
+Color palette: primary espresso brown (#3B2A22) dominant; secondary cream (#F6E9D8); accent copper (#C46A2B) minimal.
+Style: cozy lifestyle photography, shallow depth, soft grain optional.
+Constraints: no readable text, no logos, no watermark. 4:5 aspect ratio.
+```
+
+**Prompt 16 — Travel, 16:9, Sydney, airy postcard minimal**  
+```text
+Create a 16:9 widescreen background for a travel brand.
+Setting: Sydney with Sydney Opera House silhouette at golden hour, minimal detail and soft haze.
+Composition: left 50% smooth sky gradient negative space for headline; right side contains the silhouette and a small sun flare.
+Color palette: primary sky blue (#7EC8FF) dominant; secondary warm peach (#FFD1B3); accent deep navy (#102A43) minimal.
+Style: minimal travel photography, clean color grading, low noise.
+Constraints: no text, no logos, no watermark. 16:9 aspect ratio.
+```
+
+**Prompt 17 — Legal, 16:9, Washington DC, trustworthy classic**  
+```text
+Create a 16:9 background for a legal / professional services brand.
+Setting: Washington DC, subtle classical column shapes and a distant Capitol-like dome silhouette, minimal.
+Composition: broad negative space in the center for overlay; architectural lines framing edges.
+Color palette: primary deep blue (#0D2A4A) dominant; secondary white (#F7FAFF); accent muted gold (#BFA45A) minimal.
+Style: classic, clean, restrained, slight vignette for focus.
+Constraints: no text, no logos, no watermark. 16:9 aspect ratio.
+```
+
+**Prompt 18 — Sports/fitness, 9:16, Denver, energetic but readable**  
+```text
+Create a 9:16 vertical social background for a fitness brand.
+Setting: Denver mountains silhouette at sunrise, minimal detail.
+Composition: bottom 45% smooth gradient for overlay text; upper area has dynamic abstract “motion streaks” (subtle).
+Color palette: primary deep slate (#0F172A) dominant; secondary sunrise orange (#FF6A00); accent electric lime (#B7FF00) sparingly.
+Style: modern athletic, high energy, crisp edges, minimal clutter.
+Constraints: no text, no logos, no watermark. 9:16 aspect ratio.
+```
+
+**Prompt 19 — Beauty/skincare, 1:1, Seoul, glossy minimal**  
+```text
+Create a 1:1 square background for a skincare brand.
+Setting: Seoul modern city lights as very soft bokeh, minimal identifiable signage.
+Composition: clean negative space in the upper-right; lower-left has glossy “liquid” shapes like serum droplets (abstract).
+Color palette: primary pearl white (#FBFBFD) dominant; secondary blush pink (#FFC1D6); accent cool silver (#BFC7D5) minimal.
+Style: glossy minimal product-ad aesthetic, soft diffused studio light.
+Constraints: no readable text, no logos, no watermark. 1:1 aspect ratio.
+```
+
+**Prompt 20 — Insurance, 4:3, Toronto, calm trustworthy**  
+```text
+Create a 4:3 background for an insurance brand.
+Setting: Toronto skyline suggestion with CN Tower silhouette, calm overcast daylight.
+Composition: left side clean negative space for overlay; right side soft skyline gradient + gentle geometric shield motif (abstract).
+Color palette: primary trustworthy blue (#1E5AA8) dominant; secondary light gray (#EEF2F7); accent green (#2ECC71) minimal.
+Style: clean corporate modern, minimal detail, low visual noise.
+Constraints: no text, no logos, no watermark. 4:3 aspect ratio.
+```
+
+**Prompt 21 — Music/entertainment, 16:9, Austin, moody stage light**  
+```text
+Create a 16:9 background for a live music brand.
+Setting: Austin nightlife vibe, soft bokeh stage lights, minimal crowd silhouettes.
+Composition: central negative space for overlay; colored spotlights frame the top corners.
+Color palette: primary deep black (#0A0A0C) dominant; secondary royal purple (#6D28D9); accent electric cyan (#22D3EE) sparingly.
+Style: concert photography feel, shallow depth, cinematic haze, controlled grain.
+Constraints: no text, no logos, no watermark. 16:9 aspect ratio.
+```
+
+**Prompt 22 — Retail/e-commerce, 16:9, Amsterdam, clean modern storefront vibe**  
+```text
+Create a 16:9 background for an e-commerce brand.
+Setting: Amsterdam canal houses as a minimal silhouette layer, soft daylight, muted.
+Composition: 50% smooth negative space on the right; left side features abstract package-box geometry and gentle canal reflections.
+Color palette: primary clean white (#F8FAFF) dominant; secondary deep ink (#111827); accent orange (#FF6A00) minimal.
+Style: modern minimal, subtle texture, clean gradients, low clutter.
+Constraints: no text, no logos, no watermark. 16:9 aspect ratio.
+```
+
+**Prompt 23 — Architecture/design studio, 3:2, Barcelona, modernist pattern**  
+```text
+Create a 3:2 background for an architecture studio.
+Setting: Barcelona, subtle Gaudí-inspired mosaic geometry as an abstract pattern; faint skyline layer.
+Composition: broad negative space in the center; pattern confined to corners and edges.
+Color palette: primary off-white (#F5F0E8) dominant; secondary terracotta (#C25B3A); accent deep teal (#0F766E) minimal.
+Style: modernist poster-meets-minimal illustration, crisp edges, subtle paper grain.
+Constraints: no text, no logos, no watermark. 3:2 aspect ratio.
+```
+
+**Prompt 24 — HR / employer brand, 16:9, Seattle, warm professional**  
+```text
+Create a 16:9 background for an employer brand / HR campaign.
+Setting: Seattle skyline suggestion with Mount Rainier faint in the background, soft morning light.
+Composition: right 45% is clean negative space for a headline; left side has soft bokeh office lights and gentle abstract “people connections” lines.
+Color palette: primary deep teal (#0F4C5C) dominant; secondary warm ivory (#FFF4E6); accent coral (#FF6B6B) minimal.
+Style: friendly professional, modern, minimal clutter, soft focus.
+Constraints: no text, no logos, no watermark. 16:9 aspect ratio.
+```
+
+### Sample images and official examples worth referencing
+
+Google’s official image-generation documentation includes multiple example outputs (with prompts) that demonstrate layouts, isometric scenes, magazine covers, and other “design asset” formats—useful references when you’re calibrating what “clean negative space” or “poster-like composition” looks like in Nano Banana workflows. citeturn2view1turn14search2
+
+Sample links (from official documentation-hosted assets) are provided below in a code block for convenience:
+
+```text
+https://storage.googleapis.com/generativeai-downloads/images/magazine-2.jpg
+https://storage.googleapis.com/generativeai-downloads/images/isometric-pool.jpg
+https://storage.googleapis.com/generativeai-downloads/images/Nano%20Banana%20Pro%20outputs%20for%20docs/05-output.jpg
+https://storage.googleapis.com/generativeai-downloads/images/Nano%20Banana%20Pro%20outputs%20for%20docs/02-a-photo-of-an-everyday-scene-at-a-busy-cafe-servin.jpg
+```
+
+citeturn14search2
+
+## Comparison table of prompt variants and expected outcomes
+
+The table below compares common prompt variants you’ll encounter when generating social backgrounds, along with the expected behavioral differences. Where possible, the “why” is grounded in official guidance (detail improves control; explicit aspect ratio prompting; using negative space templates). citeturn12view0turn3view1turn16view1turn16view0
+
+| Dimension | Variant A | Variant B | Expected outcome difference | Typical failure mode |
+|---|---|---|---|---|
+| Aspect ratio | Only say “make it wide” | Use explicit token: “16:9 aspect ratio, widescreen backdrop” | Variant B is more likely to produce the intended layout framing because it follows Google’s recommended “production-ready specs” pattern. citeturn3view1 | Variant A drifts to square or “model default” behavior; backgrounds feel cropped wrong. (Defaults are often 1:1 when unspecified.) citeturn16view0turn18view1 |
+| Aspect ratio enforcement | Prompt-only | API `image_config.aspect_ratio="16:9"` (and optionally `image_size`) | API config is the strongest enforcement mechanism; prompt-only is weaker but necessary in constrained toolchains. citeturn16view0turn15view0 | Prompt-only can be inconsistently obeyed across runs; output size surprises. |
+| Background usability | No layout instruction | Explicit negative space instruction (safe side + % + clustering) | Negative-space prompts are better for text overlays; Google explicitly recommends this pattern for overlay use cases. citeturn16view1turn10search1 | Without layout, backgrounds are too busy; text becomes unreadable. |
+| Palette | “Use our brand colors” | List palette + dominance rules + “avoid extra saturated colors” | Variant B yields more consistent brand feel because it reduces ambiguity; official examples frequently specify “color palette/scheme.” citeturn16view2turn5view0 | Over-constraining can lead to flat or muddy images; occasional off-palette hues remain. |
+| City specificity | City name only (“Tokyo”) | City + landmark + time-of-day + atmosphere | Variant B is more recognizable and consistent; aligns with guidance to be detailed about setting. citeturn12view0turn3view1 | Over-specific landmark stacking can clutter a background and reduce negative space. |
+| Style | Only “modern” | Medium + mood + camera/lighting + abstraction level | Variant B produces more controllable aesthetics; official docs highlight style + composition + lighting as core controls. citeturn12view0turn8view0 | Too many styles (“watercolor + photoreal + vector”) conflict and cause incoherence. |
+| Text handling | Ignore text instructions | Add “no readable text” OR quote exact text if needed | “No readable text” reduces accidental gibberish signage; if you need text, quoting is recommended for precision. citeturn3view1turn16view2 | City scenes often hallucinate signage; unquoted text renders incorrectly. |
+| Iteration | Re-roll from scratch each time | Iterative edits: change 1–2 variables | Iteration is recommended as a general prompt-best-practice approach; conversational editing is a core Nano Banana workflow. citeturn12view0turn18view1 | Too many edits can cause drift; sometimes restarting with a consolidated prompt restores fidelity. citeturn18view1 |
+
+## Best-practice rules, common pitfalls, and a testing checklist
+
+### Best-practice rules for “social background” prompts
+
+Keep the prompt structured like a creative brief: style/medium → setting → composition → palette → constraints. This matches Google’s framing of prompt components (style, setting, composition) and tends to reduce random “filling” behavior. citeturn12view0turn16view1
+
+Make negative space explicit and measurable: reserve a side/region plus a percentage (“right 40–50% smooth negative space”). Google explicitly highlights a negative-space template as ideal for overlay contexts. citeturn16view1turn10search1
+
+Always specify aspect ratio using the official token format:
+- In prompt: “16:9 aspect ratio” + format label (“widescreen backdrop” / “vertical social post”). citeturn3view1  
+- In API: `image_config.aspect_ratio="16:9"` (tokens listed in docs). citeturn16view0turn16view3
+
+Use tight palettes and dominance language. Official examples encourage specifying “color palette/scheme,” and a dominance heuristic like 60-30-10 can help you describe intended weight distribution succinctly. citeturn16view2turn10search18
+
+Protect legibility: If your workflow overlays text later, design for contrast. WCAG references establish minimum contrast expectations (commonly 4.5:1 for normal text), which is a good quality bar even when text is added outside the generator. citeturn10search3turn10search7
+
+Iterate in small steps. Google’s official prompt guidance emphasizes iteration; Nano Banana workflows also support conversational editing so you can adjust composition, setting, or style rather than restarting. citeturn12view0turn18view1
+
+### Common pitfalls and how to avoid them
+
+Aspect ratio drift when you only imply shape. Fix by using explicit ratio tokens (“9:16 aspect ratio”) and/or API `image_config.aspect_ratio`. citeturn3view1turn16view0
+
+Overly busy city scenes. Backgrounds should bias toward “suggestive” landmarks rather than hyper-detailed tourist posters—otherwise you lose text-safe space. Use the negative-space composition pattern as a hard constraint. citeturn16view1turn10search1
+
+Accidental text/signage. City prompts often trigger signage; explicitly require “no readable text” unless you are intentionally generating typography. If you do need text, quote it (DeepMind guidance) and consider Nano Banana Pro for higher-fidelity text rendering. citeturn3view1turn16view2turn16view3
+
+Palette mismatch. If you only provide hex codes, the model may not consistently honor them; blend names + hex + dominance + “avoid additional saturated hues.” (Hex reliability is tool/model dependent; verify in tests.)
+
+Watermark expectations. Nano Banana images include an invisible SynthID watermark per Google’s official statements; you should avoid workflows that assume “no watermarking whatsoever.” citeturn11view0turn7view1
+
+### Short testing checklist and evaluation metrics for output quality
+
+The checklist below is deliberately short and repeatable; it maps directly to the five input dimensions you specified plus “background usability.”
+
+| Check | How to test quickly | Pass criteria |
+|---|---|---|
+| Aspect ratio compliance | Inspect output pixel dimensions OR confirm API `aspect_ratio` setting | Exact target ratio (or within 1–2 px rounding) and no unintended cropping artifacts. citeturn16view0turn16view3 |
+| Text-safe negative space | Overlay a grid or place dummy headline text in your design tool | Reserved region remains low-detail and supports readable overlay without adding opaque boxes. citeturn16view1turn10search1 |
+| Brand palette fidelity | Sample 10–20 pixels in dominant region; compare to target hex ± tolerance | Primary color clearly dominates; accents are restrained; no “rogue” saturated hues. citeturn16view2turn5view0 |
+| Contrast readiness | If overlay text is planned: run a contrast checker on representative background areas | Achieves at least WCAG-like contrast targets for intended text weight (commonly 4.5:1 for normal text). citeturn10search3turn10search7 |
+| City recognizability | Show to a reviewer for a 3-second “guess the city” test | Correct city guessed ≥70% of the time (or the intended vibe is recognized even if landmark is stylized). citeturn12view0turn3view1 |
+| Style adherence | Compare to a 3-image moodboard reference; check medium/mood/abstraction | Output matches requested medium (photo vs vector) and mood (cinematic vs airy) with minimal artifacts. citeturn12view0turn8view0 |
+| “No text/logos” constraint | Zoom to 200% and scan high-contrast areas | No gibberish letters, no brand-like marks; clean background for reuse. citeturn3view1turn16view1 |
+| Variation coverage | Generate 3–4 variations (official docs encourage multiple variations) | At least 2 outputs are usable; differences are meaningful but still on-brand. citeturn3view1 |
+
+If you want a single numeric score for A/B testing prompts, a practical composite metric is:
+
+**Background Quality Score (0–100)** = 25 (ratio compliance) + 25 (text-safe region quality) + 20 (palette fidelity) + 15 (style adherence) + 15 (city recognizability).  
+This is a heuristic scoring rubric (not an official metric), but it’s aligned with the core controllable dimensions emphasized in Google’s guidance: composition + setting + style + production specs. citeturn12view0turn3view1turn16view1
