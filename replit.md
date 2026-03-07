@@ -15,6 +15,7 @@ Users configure generation parameters (industry, visual style, aspect ratio, col
 
 ## Key Features
 
+- **URL scraping auto-fill**: Paste an event/brand website URL and the app scrapes it to automatically extract brand colors, industry, city/location, style, and mood — then populates the entire form
 - **Smart prompt builder**: Automatically constructs detailed, structured prompts from user inputs
 - **Industry motifs**: 15 industries with curated visual vocabulary
 - **Color palette**: 6 preset palettes + custom RGB/hex color pickers
@@ -32,6 +33,7 @@ Users configure generation parameters (industry, visual style, aspect ratio, col
 
 ## API Endpoints
 
+- `POST /api/scrape-event` — Scrape a website URL and extract brand/event details via AI analysis
 - `POST /api/generate` — Generate a new image (accepts ImageGenerationConfig)
 - `GET /api/history` — Get recent 20 generated images
 - `GET /api/history/:id` — Get a specific image

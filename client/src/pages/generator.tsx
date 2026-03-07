@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Wand2, Download, Copy, Loader2, Sparkles, ChevronDown, ChevronUp, Eye, EyeOff } from "lucide-react";
+import { Wand2, Download, Copy, Loader2, Sparkles, ChevronDown, ChevronUp, Eye, EyeOff, Globe, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const INDUSTRIES = [
@@ -85,12 +85,26 @@ interface GeneratedResult {
   createdAt: string;
 }
 
+interface ScrapeResult {
+  eventName: string;
+  industry: string;
+  style: string;
+  primaryColor: string;
+  secondaryColor: string;
+  accentColor: string;
+  city: string;
+  customPrompt: string;
+  summary: string;
+}
+
 export default function GeneratorPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [result, setResult] = useState<GeneratedResult | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [eventUrl, setEventUrl] = useState("");
+  const [scrapeResult, setScrapeResult] = useState<ScrapeResult | null>(null);
 
   const form = useForm<ImageGenerationConfig>({
     resolver: zodResolver(imageGenerationConfigSchema),
@@ -106,6 +120,53 @@ export default function GeneratorPage() {
       model: "gemini-2.5-flash-image",
     },
   });
+
+  const scrapeMutation = useMutation({
+    mutationFn: async (url: string) => {
+      const res = await fetch("/api/scrape-event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to analyze website");
+      }
+      return data as ScrapeResult;
+    },
+    onSuccess: (data) => {
+      setScrapeResult(data);
+      if (data.industry) form.setValue("industry", data.industry);
+      if (data.style) form.setValue("style", data.style);
+      if (data.primaryColor) form.setValue("primaryColor", data.primaryColor);
+      if (data.secondaryColor) form.setValue("secondaryColor", data.secondaryColor);
+      if (data.accentColor) form.setValue("accentColor", data.accentColor);
+      if (data.city) form.setValue("city", data.city);
+      if (data.customPrompt) form.setValue("customPrompt", data.customPrompt);
+      if (data.city || data.customPrompt) setShowAdvanced(true);
+      toast({
+        title: "Website analyzed",
+        description: data.eventName
+          ? `Extracted details from "${data.eventName}"`
+          : "Form auto-filled from website data",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Could not analyze website",
+        description: error.message || "Check the URL and try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleScrape = () => {
+    if (!eventUrl.trim()) {
+      toast({ title: "Enter a URL first", variant: "destructive" });
+      return;
+    }
+    scrapeMutation.mutate(eventUrl.trim());
+  };
 
   const mutation = useMutation({
     mutationFn: async (data: ImageGenerationConfig) => {
@@ -169,6 +230,75 @@ export default function GeneratorPage() {
         <div className="grid grid-cols-1 xl:grid-cols-[420px_1fr] gap-6">
           {/* Config Panel */}
           <div className="space-y-4">
+            {/* Event URL Input */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <Globe className="h-4 w-4 text-primary" />
+                  Event / Brand URL
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Paste a website URL to auto-fill colors, industry, location, and style
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="flex gap-2">
+                  <Input
+                    value={eventUrl}
+                    onChange={(e) => setEventUrl(e.target.value)}
+                    placeholder="e.g. https://io.google/2025"
+                    className="text-sm flex-1"
+                    data-testid="input-event-url"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleScrape();
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={handleScrape}
+                    disabled={scrapeMutation.isPending}
+                    data-testid="button-scrape"
+                  >
+                    {scrapeMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Globe className="h-4 w-4" />
+                    )}
+                    {scrapeMutation.isPending ? "Analyzing..." : "Analyze"}
+                  </Button>
+                </div>
+
+                {scrapeResult && (
+                  <div className="mt-3 p-3 rounded-md bg-primary/5 border border-primary/20">
+                    <div className="flex items-start gap-2">
+                      <Check className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">{scrapeResult.eventName}</p>
+                        {scrapeResult.summary && (
+                          <p className="text-xs text-muted-foreground mt-0.5">{scrapeResult.summary}</p>
+                        )}
+                        <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                          <Badge variant="secondary" className="text-xs">{scrapeResult.industry}</Badge>
+                          {scrapeResult.city && (
+                            <Badge variant="outline" className="text-xs">{scrapeResult.city}</Badge>
+                          )}
+                          <div className="flex gap-0.5 ml-1">
+                            <div className="w-3 h-3 rounded-sm border border-border" style={{ backgroundColor: scrapeResult.primaryColor }} />
+                            <div className="w-3 h-3 rounded-sm border border-border" style={{ backgroundColor: scrapeResult.secondaryColor }} />
+                            <div className="w-3 h-3 rounded-sm border border-border" style={{ backgroundColor: scrapeResult.accentColor }} />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
 

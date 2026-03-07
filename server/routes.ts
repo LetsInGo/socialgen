@@ -88,10 +88,187 @@ Constraints: No text, no letters, no numbers, no logos, no watermarks, no readab
 Format: ${ratioLabel}.`.trim();
 }
 
+function isUrlSafe(urlString: string): boolean {
+  try {
+    const parsed = new URL(urlString);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+    const hostname = parsed.hostname.toLowerCase();
+    const blocked = [
+      "localhost", "127.0.0.1", "0.0.0.0", "[::1]", "metadata.google.internal",
+      "169.254.169.254", "metadata", "10.", "172.16.", "172.17.", "172.18.",
+      "172.19.", "172.20.", "172.21.", "172.22.", "172.23.", "172.24.", "172.25.",
+      "172.26.", "172.27.", "172.28.", "172.29.", "172.30.", "172.31.", "192.168.",
+    ];
+    for (const b of blocked) {
+      if (hostname === b || hostname.startsWith(b)) return false;
+    }
+    if (!hostname.includes(".")) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function fetchWebsiteContent(url: string): Promise<string> {
+  if (!isUrlSafe(url)) {
+    throw new Error("URL must be a public website (http or https)");
+  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      redirect: "follow",
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; NanoBananaBot/1.0)",
+        "Accept": "text/html,application/xhtml+xml",
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`Website returned status ${response.status}`);
+    }
+    const html = await response.text();
+    const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+    const title = titleMatch ? titleMatch[1].trim() : "";
+    const metaDesc = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([\s\S]*?)["']/i);
+    const description = metaDesc ? metaDesc[1].trim() : "";
+    const metaKw = html.match(/<meta[^>]*name=["']keywords["'][^>]*content=["']([\s\S]*?)["']/i);
+    const keywords = metaKw ? metaKw[1].trim() : "";
+    const ogImage = html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([\s\S]*?)["']/i);
+    const ogImg = ogImage ? ogImage[1].trim() : "";
+    const ogTitle = html.match(/<meta[^>]*property=["']og:title["'][^>]*content=["']([\s\S]*?)["']/i);
+    const ogT = ogTitle ? ogTitle[1].trim() : "";
+    const ogDesc = html.match(/<meta[^>]*property=["']og:description["'][^>]*content=["']([\s\S]*?)["']/i);
+    const ogD = ogDesc ? ogDesc[1].trim() : "";
+
+    const colorMatches = new Set<string>();
+    const hexPattern = /#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b/g;
+    let match;
+    while ((match = hexPattern.exec(html)) !== null && colorMatches.size < 30) {
+      colorMatches.add(match[0]);
+    }
+
+    const rgbPattern = /rgb[a]?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/g;
+    while ((match = rgbPattern.exec(html)) !== null && colorMatches.size < 40) {
+      const r = parseInt(match[1]).toString(16).padStart(2, "0");
+      const g = parseInt(match[2]).toString(16).padStart(2, "0");
+      const b = parseInt(match[3]).toString(16).padStart(2, "0");
+      colorMatches.add(`#${r}${g}${b}`);
+    }
+
+    const stripped = html
+      .replace(/<script[\s\S]*?<\/script>/gi, "")
+      .replace(/<style[\s\S]*?<\/style>/gi, "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    const bodyText = stripped.slice(0, 4000);
+
+    return `URL: ${url}
+Title: ${title}
+OG Title: ${ogT}
+Description: ${description}
+OG Description: ${ogD}
+Keywords: ${keywords}
+OG Image: ${ogImg}
+Colors found in CSS/HTML: ${Array.from(colorMatches).join(", ")}
+Page text (first 4000 chars): ${bodyText}`;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+const INDUSTRIES_LIST = Object.keys(INDUSTRY_MOTIFS);
+const STYLES_LIST = ["photorealistic", "illustration", "abstract", "minimalist", "gradient", "editorial"];
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+
+  app.post("/api/scrape-event", async (req: Request, res: Response) => {
+    try {
+      const { url } = req.body;
+      if (!url || typeof url !== "string") {
+        return res.status(400).json({ error: "URL is required" });
+      }
+
+      let normalizedUrl = url.trim();
+      if (!/^https?:\/\//i.test(normalizedUrl)) {
+        normalizedUrl = "https://" + normalizedUrl;
+      }
+
+      let websiteContent: string;
+      try {
+        websiteContent = await fetchWebsiteContent(normalizedUrl);
+      } catch (err: any) {
+        return res.status(400).json({ error: `Could not fetch website: ${err.message}` });
+      }
+
+      const analysisPrompt = `You are analyzing an event or brand website to extract visual design parameters for generating a social media background image.
+
+Here is the website content:
+---
+${websiteContent}
+---
+
+Based on this website, extract the following and respond ONLY with valid JSON (no markdown, no code fences):
+
+{
+  "eventName": "name of the event or brand",
+  "industry": "one of: ${INDUSTRIES_LIST.join(", ")}",
+  "style": "one of: ${STYLES_LIST.join(", ")} — pick the one that best matches the event's visual identity",
+  "primaryColor": "hex color — the dominant brand/event color from the website",
+  "secondaryColor": "hex color — a complementary dark or contrasting color from the website",
+  "accentColor": "hex color — a highlight or accent color from the website",
+  "city": "the city or location where the event takes place (empty string if not found)",
+  "customPrompt": "a brief 1-2 sentence description of the event's visual mood, theme, or atmosphere that should influence the background image",
+  "summary": "a 1-2 sentence summary of what this event/brand is about"
+}
+
+Rules:
+- For colors, prefer actual brand colors found on the site. Avoid common CSS defaults (#000, #fff, #333, #666, etc). Pick distinctive, on-brand colors.
+- For industry, pick the closest match from the provided list.
+- For style, consider the website's design language (corporate = minimalist, creative = abstract, etc).
+- If you can't determine a field, make your best reasonable guess based on context.`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: [{ role: "user", parts: [{ text: analysisPrompt }] }],
+      });
+
+      const text = response.text || "";
+      const jsonMatch = text.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/);
+      if (!jsonMatch) {
+        return res.status(500).json({ error: "Could not extract structured data from this website. Try a different URL." });
+      }
+
+      let parsed: any;
+      try {
+        parsed = JSON.parse(jsonMatch[0]);
+      } catch {
+        return res.status(500).json({ error: "Could not parse analysis result. Try again." });
+      }
+
+      const result = {
+        eventName: typeof parsed.eventName === "string" ? parsed.eventName : "Unknown Event",
+        industry: INDUSTRIES_LIST.includes(parsed.industry) ? parsed.industry : "Technology / SaaS",
+        style: STYLES_LIST.includes(parsed.style) ? parsed.style : "gradient",
+        primaryColor: typeof parsed.primaryColor === "string" && /^#[0-9a-fA-F]{3,6}$/.test(parsed.primaryColor) ? parsed.primaryColor : "#0A84FF",
+        secondaryColor: typeof parsed.secondaryColor === "string" && /^#[0-9a-fA-F]{3,6}$/.test(parsed.secondaryColor) ? parsed.secondaryColor : "#0B1F3B",
+        accentColor: typeof parsed.accentColor === "string" && /^#[0-9a-fA-F]{3,6}$/.test(parsed.accentColor) ? parsed.accentColor : "#64D2FF",
+        city: typeof parsed.city === "string" ? parsed.city : "",
+        customPrompt: typeof parsed.customPrompt === "string" ? parsed.customPrompt : "",
+        summary: typeof parsed.summary === "string" ? parsed.summary : "",
+      };
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("Scrape error:", error);
+      res.status(500).json({ error: error.message || "Failed to analyze website" });
+    }
+  });
+
   app.post("/api/generate", async (req: Request, res: Response) => {
     try {
       const config = imageGenerationConfigSchema.parse(req.body);
