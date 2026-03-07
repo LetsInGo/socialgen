@@ -112,6 +112,31 @@ function buildPrompt(config: z.infer<typeof imageGenerationConfigSchema>): strin
     }
   }
 
+  const themeInt = config.themeIntensity ?? 50;
+  const themePrefix = intensityPrefix(themeInt);
+  let themeSection = "";
+  if (config.theme) {
+    themeSection = themePrefix.adjective
+      ? `Event theme: ${config.theme} — ${themePrefix.verb} ${themePrefix.adjective} conceptual visual elements related to this topic (abstract representations, symbolic imagery, relevant patterns).`
+      : `Event theme: ${config.theme} — ${themePrefix.verb} conceptual visual elements related to this topic (abstract representations, symbolic imagery, relevant patterns).`;
+  }
+
+  const venueInt = config.venueIntensity ?? 50;
+  let venueSection = "";
+  if (config.venue) {
+    if (venueInt <= 25) {
+      venueSection = `Venue: ${config.venue} — use a faint, abstract hint of the venue's architectural style in the background, barely perceptible.`;
+    } else if (venueInt <= 45) {
+      venueSection = `Venue: ${config.venue} — subtly reference the venue's architecture with soft geometric hints or structural patterns.`;
+    } else if (venueInt <= 55) {
+      venueSection = `Venue: ${config.venue} — incorporate recognizable architectural elements of the venue as part of the background composition.`;
+    } else if (venueInt <= 75) {
+      venueSection = `Venue: ${config.venue} — prominently feature the venue's distinctive architecture and facade as a clear visual element.`;
+    } else {
+      venueSection = `Venue: ${config.venue} — make the venue's iconic architecture the dominant backdrop, with its facade and structural details as the primary visual focus.`;
+    }
+  }
+
   const customSection = config.customPrompt
     ? `Additional details: ${config.customPrompt}.`
     : "";
@@ -120,11 +145,15 @@ function buildPrompt(config: z.infer<typeof imageGenerationConfigSchema>): strin
 
 ${industrySection}
 
+${themeSection}
+
 Color palette: ${colorSection}. The background field should reflect these colors with large gradient canvas areas.
 
 Composition: Design for text overlay use — leave generous negative space in the upper-center and lower regions where headlines and body copy will be placed. Use depth-of-field or softness to ensure text readability areas. Focal interest should sit at bottom-right or bottom-left corner, not center.
 
 ${citySection}
+
+${venueSection}
 
 ${customSection}
 
@@ -262,6 +291,8 @@ Respond ONLY with valid JSON (no markdown, no code fences):
   "accentColor": "hex color — highlight or accent color used for CTAs, links, or emphasis",
   "accentConfidence": 0-100,
   "city": "the city or location where the event takes place (empty string if not found)",
+  "venue": "the specific venue or conference center name (e.g. 'Moscone Center', 'Las Vegas Convention Center'). Empty string if not found.",
+  "theme": "the core topic or subject matter of the event/brand (e.g. 'Artificial Intelligence & Machine Learning', 'Sustainable Finance', 'Developer Tools'). NOT the visual style — this is the conceptual theme. Empty string if unclear.",
   "customPrompt": "a brief 1-2 sentence description of the event's visual mood, theme, or atmosphere",
   "summary": "a 1-2 sentence summary of what this event/brand is about"
 }
@@ -331,6 +362,8 @@ Rules:
           accentColor: typeof parsed.accentColor === "string" && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(parsed.accentColor) ? parsed.accentColor : "#64D2FF",
           accentConfidence: typeof parsed.accentConfidence === "number" ? Math.min(100, Math.max(0, parsed.accentConfidence)) : 50,
           city: typeof parsed.city === "string" ? parsed.city : "",
+          venue: typeof parsed.venue === "string" ? parsed.venue : "",
+          theme: typeof parsed.theme === "string" ? parsed.theme : "",
           customPrompt: typeof parsed.customPrompt === "string" ? parsed.customPrompt : "",
           summary: typeof parsed.summary === "string" ? parsed.summary : "",
           screenshot: screenshotBase64,

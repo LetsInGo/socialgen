@@ -48,6 +48,10 @@ export const imageGenerationConfigSchema = z.object({
   cityIntensity: z.number().min(0).max(100).optional().default(50),
   styleIntensity: z.number().min(0).max(100).optional().default(50),
   city: z.string().optional().default(""),
+  venue: z.string().optional().default(""),
+  theme: z.string().optional().default(""),
+  venueIntensity: z.number().min(0).max(100).optional().default(50),
+  themeIntensity: z.number().min(0).max(100).optional().default(50),
   customPrompt: z.string().optional().default(""),
   model: z.enum(["gemini-2.5-flash-image", "gemini-3-pro-image-preview"]).default("gemini-2.5-flash-image"),
 });

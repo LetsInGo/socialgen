@@ -32,6 +32,8 @@ Users configure generation parameters (industry, visual style, aspect ratio, col
 - **Aspect ratios**: 7 standard social ratios rendered as visual thumbnails (shape previews, not a dropdown)
 - **Visual styles**: 6 styles (photorealistic, illustration, abstract, minimalist, gradient, editorial)
 - **Model selection**: Nano Banana (fast) vs Nano Banana Pro (high fidelity) — in Advanced section, with contextual upsell post-generation
+- **Event theme**: Extracted from scraping (e.g. "AI & Machine Learning", "Sustainable Finance") — adds conceptual visual imagery with intensity control
+- **Venue**: Extracted from scraping (e.g. "Moscone Center") — adds venue architecture with intensity control
 - **City/location**: Optional city backdrop with cultural cues and intensity control
 - **Generation history**: Browse, preview, download, and delete past generations
 - **Prompt reveal**: "View prompt used" toggle beneath preview, shows the exact prompt sent to AI with copy button

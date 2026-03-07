@@ -106,6 +106,8 @@ interface ScrapeResult {
   accentColor: string;
   accentConfidence: number;
   city: string;
+  venue: string;
+  theme: string;
   customPrompt: string;
   summary: string;
   screenshot?: string;
@@ -176,6 +178,10 @@ export default function GeneratorPage() {
       cityIntensity: 50,
       styleIntensity: 50,
       city: "",
+      venue: "",
+      theme: "",
+      venueIntensity: 50,
+      themeIntensity: 50,
       customPrompt: "",
       model: "gemini-2.5-flash-image",
     },
@@ -200,8 +206,10 @@ export default function GeneratorPage() {
       if (data.primaryColor) form.setValue("primaryColor", data.primaryColor);
       if (data.secondaryColor) form.setValue("secondaryColor", data.secondaryColor);
       if (data.accentColor) form.setValue("accentColor", data.accentColor);
-      if (data.city) form.setValue("city", data.city);
-      if (data.customPrompt) form.setValue("customPrompt", data.customPrompt);
+      form.setValue("city", data.city || "");
+      form.setValue("venue", data.venue || "");
+      form.setValue("theme", data.theme || "");
+      form.setValue("customPrompt", data.customPrompt || "");
       setShowPresets(false);
       form.setValue("primaryWeight", 70);
       form.setValue("secondaryWeight", 20);
@@ -509,8 +517,14 @@ export default function GeneratorPage() {
                           <p className="text-xs font-medium" data-testid="text-event-name">{scrapeResult.eventName}</p>
                           <div className="flex flex-wrap items-center gap-1 mt-1.5">
                             <Badge variant="secondary" className="text-[10px] h-5" data-testid="badge-industry">{scrapeResult.industry}</Badge>
+                            {scrapeResult.theme && (
+                              <Badge variant="secondary" className="text-[10px] h-5" data-testid="badge-theme">{scrapeResult.theme}</Badge>
+                            )}
                             {scrapeResult.city && (
                               <Badge variant="outline" className="text-[10px] h-5" data-testid="badge-city">{scrapeResult.city}</Badge>
+                            )}
+                            {scrapeResult.venue && (
+                              <Badge variant="outline" className="text-[10px] h-5" data-testid="badge-venue">{scrapeResult.venue}</Badge>
                             )}
                           </div>
                           <div className="flex items-center gap-1.5 mt-2">
@@ -771,7 +785,9 @@ export default function GeneratorPage() {
                     {([
                       { name: "industryIntensity" as const, label: "Industry Motifs", testId: "slider-industry-intensity" },
                       { name: "styleIntensity" as const, label: "Visual Style", testId: "slider-style-intensity" },
+                      { name: "themeIntensity" as const, label: "Event Theme", testId: "slider-theme-intensity" },
                       { name: "cityIntensity" as const, label: "City / Location", testId: "slider-city-intensity" },
+                      { name: "venueIntensity" as const, label: "Venue", testId: "slider-venue-intensity" },
                     ]).map((item) => (
                       <FormField
                         key={item.name}
@@ -796,6 +812,20 @@ export default function GeneratorPage() {
                   <div className="space-y-3">
                     <FormField
                       control={form.control}
+                      name="theme"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-[11px] font-medium">Event / Brand Theme</FormLabel>
+                          <FormControl>
+                            <Input {...field} placeholder="e.g. Artificial Intelligence, Sustainability, Fintech..." className="text-sm h-8" data-testid="input-theme" />
+                          </FormControl>
+                          <p className="text-[10px] text-muted-foreground">The topic or subject matter — adds conceptual imagery</p>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
                       name="city"
                       render={({ field }) => (
                         <FormItem>
@@ -807,6 +837,20 @@ export default function GeneratorPage() {
                             <Input {...field} placeholder="e.g. Tokyo, New York, Paris..." className="text-sm h-8" data-testid="input-city" />
                           </FormControl>
                           <p className="text-[10px] text-muted-foreground">Adds skyline, landmarks, and cultural cues</p>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="venue"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-[11px] font-medium">Venue</FormLabel>
+                          <FormControl>
+                            <Input {...field} placeholder="e.g. Moscone Center, ExCeL London..." className="text-sm h-8" data-testid="input-venue" />
+                          </FormControl>
+                          <p className="text-[10px] text-muted-foreground">Adds venue architecture and structural elements</p>
                         </FormItem>
                       )}
                     />
