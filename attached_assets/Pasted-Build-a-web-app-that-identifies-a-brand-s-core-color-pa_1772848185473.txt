@@ -1,0 +1,52 @@
+Build a web app that identifies a brand’s core color palette from a website URL.
+
+Goal:
+Given a website URL, analyze the site and return the brand’s most likely colors, not just random colors that appear on the page.
+
+Requirements:
+1. Let the user enter a website URL.
+2. Load the page in a headless browser so JavaScript-rendered sites work.
+3. Collect colors from:
+   - CSS variables and stylesheets
+   - computed styles on visible elements
+   - key UI elements like buttons, links, headers, nav, and hero sections
+   - logo and hero images for dominant image colors
+4. Normalize all colors to hex.
+5. Merge near-duplicate shades.
+6. Ignore low-value colors when appropriate, such as common whites, blacks, grays, overlays, and cookie banner colors unless they are clearly dominant brand colors.
+7. Score colors by importance using:
+   - frequency of use
+   - visual area on the page
+   - placement in important elements like logo, CTA buttons, nav, and headings
+8. Return:
+   - primary brand color
+   - secondary colors
+   - accent colors
+   - neutral/background colors
+   - confidence score for each
+9. Show results as color swatches with hex codes and simple labels.
+10. Add export options for JSON and CSV.
+
+Implementation approach:
+- Use a headless browser to render the page.
+- Parse CSS and computed styles from visible DOM elements.
+- Weight important elements more heavily than small or hidden elements.
+- Use image-based color extraction only as a supporting signal, not the only method.
+- Combine CSS-based and image-based results into one ranked palette.
+
+UI:
+- Simple input field for URL
+- Analyze button
+- Palette results section with swatches, hex values, labels, and confidence
+- Optional debug view showing where each color was found
+
+Success criteria:
+- Works on modern marketing sites
+- Produces a palette that matches human judgment of the brand
+- Prioritizes true brand colors over incidental page colors
+- Handles JavaScript-heavy sites gracefully
+
+Nice-to-have:
+- Screenshot preview of the analyzed page
+- Ability to analyze multiple pages from the same domain and combine results
+- Downloadable report with palette and source evidence
