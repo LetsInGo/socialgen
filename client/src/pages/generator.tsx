@@ -11,52 +11,44 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
-import { Wand2, Download, Copy, Loader2, Sparkles, ChevronDown, ChevronUp, Eye, EyeOff, Globe, Check, ArrowUp, ArrowDown, SlidersHorizontal } from "lucide-react";
+import {
+  Wand2, Download, Copy, Loader2, Sparkles, ChevronDown, ChevronUp,
+  Globe, Check, ArrowUp, ArrowDown, SlidersHorizontal, AlertCircle,
+  Palette, Settings2, MapPin, FileText, RefreshCw, Zap, Image as ImageIcon,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const INDUSTRIES = [
-  "Technology / SaaS",
-  "Cybersecurity",
-  "Finance / Fintech",
-  "Healthcare / Biotech",
-  "Fashion / Luxury",
-  "Food & Beverage",
-  "Education",
-  "Real Estate",
-  "Travel & Tourism",
-  "Sports & Fitness",
-  "Creative / Design",
-  "Music & Entertainment",
-  "Non-profit / Social",
-  "Automotive",
-  "E-commerce / Retail",
+  "Technology / SaaS", "Cybersecurity", "Finance / Fintech", "Healthcare / Biotech",
+  "Fashion / Luxury", "Food & Beverage", "Education", "Real Estate",
+  "Travel & Tourism", "Sports & Fitness", "Creative / Design",
+  "Music & Entertainment", "Non-profit / Social", "Automotive", "E-commerce / Retail",
 ];
 
 const ASPECT_RATIOS = [
-  { value: "16:9", label: "16:9 — Widescreen / YouTube / LinkedIn" },
-  { value: "9:16", label: "9:16 — Story / Reel / TikTok" },
-  { value: "1:1", label: "1:1 — Square / Instagram Post" },
-  { value: "4:5", label: "4:5 — Portrait / Instagram" },
-  { value: "3:2", label: "3:2 — Landscape / Twitter Banner" },
-  { value: "2:3", label: "2:3 — Portrait / Pinterest" },
-  { value: "21:9", label: "21:9 — Ultra-wide / Website Hero" },
+  { value: "16:9", label: "16:9", desc: "YouTube / LinkedIn", w: 32, h: 18 },
+  { value: "9:16", label: "9:16", desc: "Story / Reel", w: 18, h: 32 },
+  { value: "1:1", label: "1:1", desc: "Square", w: 24, h: 24 },
+  { value: "4:5", label: "4:5", desc: "Instagram", w: 20, h: 25 },
+  { value: "3:2", label: "3:2", desc: "Twitter", w: 30, h: 20 },
+  { value: "2:3", label: "2:3", desc: "Pinterest", w: 20, h: 30 },
+  { value: "21:9", label: "21:9", desc: "Hero Banner", w: 42, h: 18 },
 ];
 
 const STYLES = [
-  { value: "photorealistic", label: "Photorealistic" },
+  { value: "photorealistic", label: "Photo" },
   { value: "illustration", label: "Illustration" },
-  { value: "abstract", label: "Abstract Art" },
-  { value: "minimalist", label: "Minimalist" },
+  { value: "abstract", label: "Abstract" },
+  { value: "minimalist", label: "Minimal" },
   { value: "gradient", label: "Gradient" },
   { value: "editorial", label: "Editorial" },
 ];
 
 const MODELS = [
-  { value: "gemini-2.5-flash-image", label: "Nano Banana — Fast", badge: "Fast" },
-  { value: "gemini-3-pro-image-preview", label: "Nano Banana Pro — High Fidelity", badge: "Pro" },
+  { value: "gemini-2.5-flash-image", label: "Nano Banana", badge: "Fast" },
+  { value: "gemini-3-pro-image-preview", label: "Nano Banana Pro", badge: "Pro" },
 ];
 
 const ASPECT_RATIO_CSS: Record<string, string> = {
@@ -93,6 +85,7 @@ interface GeneratedResult {
   imageData: string;
   mimeType: string;
   prompt: string;
+  config?: ImageGenerationConfig;
   createdAt: string;
 }
 
@@ -121,16 +114,51 @@ interface ScrapeResult {
 
 type ColorRole = "primary" | "secondary" | "accent";
 
+function CollapsibleSection({
+  title,
+  icon: Icon,
+  defaultOpen = false,
+  children,
+  testId,
+}: {
+  title: string;
+  icon: any;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+  testId: string;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="border border-border rounded-lg overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-3 py-2.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
+        data-testid={testId}
+      >
+        <span className="flex items-center gap-2">
+          <Icon className="h-3.5 w-3.5" />
+          {title}
+        </span>
+        {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+      </button>
+      {open && <div className="px-3 pb-3 border-t border-border pt-3">{children}</div>}
+    </div>
+  );
+}
+
 export default function GeneratorPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [result, setResult] = useState<GeneratedResult | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [eventUrl, setEventUrl] = useState("");
   const [scrapeResult, setScrapeResult] = useState<ScrapeResult | null>(null);
+  const [scrapeError, setScrapeError] = useState<string | null>(null);
+  const [generationError, setGenerationError] = useState<string | null>(null);
   const [showColorDetails, setShowColorDetails] = useState(false);
   const [showPresets, setShowPresets] = useState(true);
+  const [generatedWithModel, setGeneratedWithModel] = useState<string | null>(null);
 
   const form = useForm<ImageGenerationConfig>({
     resolver: zodResolver(imageGenerationConfigSchema),
@@ -161,13 +189,12 @@ export default function GeneratorPage() {
         body: JSON.stringify({ url }),
       });
       const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to analyze website");
-      }
+      if (!res.ok) throw new Error(data.error || "Failed to analyze website");
       return data as ScrapeResult;
     },
     onSuccess: (data) => {
       setScrapeResult(data);
+      setScrapeError(null);
       if (data.industry) form.setValue("industry", data.industry);
       if (data.style) form.setValue("style", data.style);
       if (data.primaryColor) form.setValue("primaryColor", data.primaryColor);
@@ -175,7 +202,6 @@ export default function GeneratorPage() {
       if (data.accentColor) form.setValue("accentColor", data.accentColor);
       if (data.city) form.setValue("city", data.city);
       if (data.customPrompt) form.setValue("customPrompt", data.customPrompt);
-      if (data.city || data.customPrompt) setShowAdvanced(true);
       setShowPresets(false);
       form.setValue("primaryWeight", 70);
       form.setValue("secondaryWeight", 20);
@@ -188,19 +214,16 @@ export default function GeneratorPage() {
       });
     },
     onError: (error: any) => {
-      toast({
-        title: "Could not analyze website",
-        description: error.message || "Check the URL and try again.",
-        variant: "destructive",
-      });
+      setScrapeError(error.message || "Check the URL and try again.");
     },
   });
 
   const handleScrape = () => {
     if (!eventUrl.trim()) {
-      toast({ title: "Enter a URL first", variant: "destructive" });
+      setScrapeError("Enter a URL first");
       return;
     }
+    setScrapeError(null);
     scrapeMutation.mutate(eventUrl.trim());
   };
 
@@ -211,23 +234,29 @@ export default function GeneratorPage() {
     },
     onSuccess: (data) => {
       setResult(data);
+      setGenerationError(null);
+      setGeneratedWithModel(form.getValues("model"));
       queryClient.invalidateQueries({ queryKey: ["/api/history"] });
-      toast({
-        title: "Image generated!",
-        description: "Your social background is ready.",
-      });
     },
     onError: (error: any) => {
-      toast({
-        title: "Generation failed",
-        description: error.message || "Something went wrong. Please try again.",
-        variant: "destructive",
-      });
+      setGenerationError(error.message || "Something went wrong. Please try again.");
     },
   });
 
   const onSubmit = (data: ImageGenerationConfig) => {
+    setGenerationError(null);
     mutation.mutate(data);
+  };
+
+  const handleRetryGeneration = () => {
+    setGenerationError(null);
+    form.handleSubmit(onSubmit)();
+  };
+
+  const handleTryPro = () => {
+    form.setValue("model", "gemini-3-pro-image-preview");
+    setGeneratedWithModel(null);
+    form.handleSubmit(onSubmit)();
   };
 
   const applyPalette = (palette: typeof PRESET_PALETTES[0]) => {
@@ -239,13 +268,10 @@ export default function GeneratorPage() {
   const swapColors = (index: number, direction: "up" | "down") => {
     const targetIndex = direction === "up" ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= colorFields.length) return;
-
     const currentRole = colorFields[index].role;
     const targetRole = colorFields[targetIndex].role;
-
     const currentColor = form.getValues(`${currentRole}Color` as keyof ImageGenerationConfig) as string;
     const targetColor = form.getValues(`${targetRole}Color` as keyof ImageGenerationConfig) as string;
-
     form.setValue(`${currentRole}Color` as any, targetColor);
     form.setValue(`${targetRole}Color` as any, currentColor);
   };
@@ -275,302 +301,411 @@ export default function GeneratorPage() {
 
   return (
     <div className="min-h-full bg-background">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold tracking-tight">Generate Background</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Configure your parameters and generate production-ready social media background images
-          </p>
-        </div>
+      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-6">
 
-        <div className="grid grid-cols-1 xl:grid-cols-[420px_1fr] gap-6">
-          {/* Config Panel */}
-          <div className="space-y-4">
-            {/* Event URL Input */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <Globe className="h-4 w-4 text-primary" />
-                  Event / Brand URL
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Paste a website URL to auto-fill colors, industry, location, and style
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="flex gap-2">
-                  <Input
-                    value={eventUrl}
-                    onChange={(e) => setEventUrl(e.target.value)}
-                    placeholder="e.g. https://io.google/2025"
-                    className="text-sm flex-1"
-                    data-testid="input-event-url"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleScrape();
-                      }
-                    }}
-                  />
+          {/* ===== PREVIEW PANEL (LEFT — HERO) ===== */}
+          <div className="space-y-3 order-2 xl:order-1">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-lg font-bold tracking-tight" data-testid="text-page-title">Generate Background</h1>
+                <p className="text-xs text-muted-foreground">AI-powered social media backgrounds</p>
+              </div>
+              {result && (
+                <div className="flex items-center gap-2">
                   <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={handleScrape}
-                    disabled={scrapeMutation.isPending}
-                    data-testid="button-scrape"
+                    size="sm"
+                    variant="outline"
+                    onClick={downloadImage}
+                    data-testid="button-download"
                   >
-                    {scrapeMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Globe className="h-4 w-4" />
-                    )}
-                    {scrapeMutation.isPending ? "Analyzing..." : "Analyze"}
+                    <Download className="h-3.5 w-3.5" />
+                    Download
                   </Button>
                 </div>
+              )}
+            </div>
 
-                {scrapeResult && (
-                  <div className="mt-3 p-3 rounded-md bg-primary/5 border border-primary/20">
-                    <div className="flex items-start gap-2">
-                      <Check className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                      <div className="min-w-0 w-full">
-                        <p className="text-sm font-medium" data-testid="text-event-name">{scrapeResult.eventName}</p>
-                        {scrapeResult.summary && (
-                          <p className="text-xs text-muted-foreground mt-0.5" data-testid="text-event-summary">{scrapeResult.summary}</p>
-                        )}
-                        <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                          <Badge variant="secondary" className="text-xs" data-testid="badge-industry">{scrapeResult.industry}</Badge>
-                          {scrapeResult.city && (
-                            <Badge variant="outline" className="text-xs" data-testid="badge-city">{scrapeResult.city}</Badge>
-                          )}
-                        </div>
+            {/* Preview Area */}
+            <div
+              className={cn(
+                "w-full rounded-lg border border-border overflow-hidden bg-muted/20 relative",
+                ASPECT_RATIO_CSS[selectedRatio] || "aspect-video",
+                "min-h-[280px]"
+              )}
+              data-testid="preview-area"
+            >
+              {mutation.isPending ? (
+                <div className="absolute inset-0 skeleton-shimmer flex flex-col items-center justify-center gap-4">
+                  <div className="relative">
+                    <Loader2 className="h-10 w-10 animate-spin text-primary/60" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-medium text-foreground/80" data-testid="text-loading">Creating your background...</p>
+                    <p className="text-xs text-muted-foreground mt-1">This usually takes 15-30 seconds</p>
+                  </div>
+                </div>
+              ) : generationError ? (
+                <div className="absolute inset-0 flex items-center justify-center p-6">
+                  <div className="text-center max-w-sm space-y-3" data-testid="generation-error">
+                    <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
+                      <AlertCircle className="h-6 w-6 text-destructive" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold">Generation failed</p>
+                      <p className="text-xs text-muted-foreground mt-1">{generationError}</p>
+                    </div>
+                    <div className="flex items-center justify-center gap-2">
+                      <Button size="sm" onClick={handleRetryGeneration} data-testid="button-retry-generate">
+                        <RefreshCw className="h-3.5 w-3.5" />
+                        Try again
+                      </Button>
+                      {form.getValues("model") === "gemini-2.5-flash-image" && (
+                        <Button size="sm" variant="outline" onClick={handleTryPro} data-testid="button-try-pro-error">
+                          <Sparkles className="h-3.5 w-3.5" />
+                          Try with Pro
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : result ? (
+                <img
+                  src={`data:${result.mimeType};base64,${result.imageData}`}
+                  alt="Generated social background"
+                  className="w-full h-full object-cover"
+                  data-testid="img-generated"
+                />
+              ) : (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-muted-foreground">
+                  <div className="w-14 h-14 rounded-full bg-muted/50 flex items-center justify-center">
+                    <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-medium" data-testid="text-empty-state">Your generated image will appear here</p>
+                    <p className="text-xs mt-1 opacity-60">Start by pasting a URL or picking a style</p>
+                  </div>
+                </div>
+              )}
+            </div>
 
-                        <div className="mt-3 space-y-1.5">
-                          {[
-                            { label: "Primary", color: scrapeResult.primaryColor, confidence: scrapeResult.primaryConfidence },
-                            { label: "Secondary", color: scrapeResult.secondaryColor, confidence: scrapeResult.secondaryConfidence },
-                            { label: "Accent", color: scrapeResult.accentColor, confidence: scrapeResult.accentConfidence },
-                          ].map((c) => (
-                            <div key={c.label} className="flex items-center gap-2" data-testid={`swatch-${c.label.toLowerCase()}`}>
-                              <div
-                                className="w-5 h-5 rounded border border-border flex-shrink-0"
-                                style={{ backgroundColor: c.color }}
-                              />
-                              <span className="text-xs font-mono text-muted-foreground uppercase">{c.color}</span>
-                              <span className="text-[10px] text-muted-foreground">{c.label}</span>
-                              {c.confidence > 0 && (
-                                <span className="text-[10px] text-muted-foreground/70 ml-auto">{c.confidence}%</span>
-                              )}
-                            </div>
-                          ))}
-                        </div>
+            {/* Pro Upsell Banner */}
+            {result && generatedWithModel === "gemini-2.5-flash-image" && (
+              <div className="flex items-center justify-between px-3 py-2 rounded-lg border border-border bg-card" data-testid="upsell-pro">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Zap className="h-3.5 w-3.5 text-amber-500" />
+                  <span>Generated with Nano Banana</span>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-xs h-7 gap-1.5 text-primary hover:text-primary"
+                  onClick={handleTryPro}
+                  data-testid="button-try-pro"
+                >
+                  <Sparkles className="h-3 w-3" />
+                  Try Pro for higher fidelity
+                </Button>
+              </div>
+            )}
 
-                        {(scrapeResult.allColors || scrapeResult.screenshot) && (
-                          <button
-                            type="button"
-                            onClick={() => setShowColorDetails(!showColorDetails)}
-                            className="mt-2 text-[11px] text-primary/70 hover:text-primary flex items-center gap-1"
-                            data-testid="button-toggle-color-details"
-                          >
-                            {showColorDetails ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                            {showColorDetails ? "Hide details" : "Show analysis details"}
-                          </button>
-                        )}
-
-                        {showColorDetails && (
-                          <div className="mt-2 space-y-2">
-                            {scrapeResult.screenshot && (
-                              <div className="rounded overflow-hidden border border-border">
-                                <img
-                                  src={`data:image/png;base64,${scrapeResult.screenshot}`}
-                                  alt="Analyzed page screenshot"
-                                  className="w-full h-auto"
-                                  data-testid="img-screenshot"
-                                />
-                              </div>
-                            )}
-                            {scrapeResult.allColors && scrapeResult.allColors.length > 0 && (
-                              <div>
-                                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 font-medium">All detected colors</p>
-                                <div className="flex flex-wrap gap-1">
-                                  {scrapeResult.allColors.map((c, i) => (
-                                    <div
-                                      key={i}
-                                      className="group relative"
-                                      data-testid={`detected-color-${i}`}
-                                    >
-                                      <div
-                                        className="w-6 h-6 rounded border border-border cursor-default"
-                                        style={{ backgroundColor: c.hex }}
-                                        title={`${c.hex} (score: ${c.score})\nFound in: ${c.sources.join(", ")}`}
-                                      />
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
+            {/* Prompt Reveal */}
+            {result && (
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setShowPrompt(!showPrompt)}
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
+                  data-testid="button-toggle-prompt"
+                >
+                  {showPrompt ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                  <FileText className="h-3.5 w-3.5" />
+                  {showPrompt ? "Hide prompt" : "View prompt used"}
+                </button>
+                {showPrompt && (
+                  <div className="mt-2 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Prompt sent to AI</p>
+                      <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={copyPrompt} data-testid="button-copy-prompt">
+                        <Copy className="h-3 w-3" />
+                        Copy prompt
+                      </Button>
+                    </div>
+                    <div className="bg-muted/30 rounded-md p-3 text-xs text-muted-foreground leading-relaxed font-mono max-h-40 overflow-y-auto border border-border">
+                      {result.prompt}
                     </div>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            )}
+          </div>
 
+          {/* ===== CONFIG PANEL (RIGHT — COMPACT) ===== */}
+          <div className="order-1 xl:order-2">
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
 
-                {/* Model Selection */}
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                      <Sparkles className="h-4 w-4 text-primary" />
-                      Model
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <FormField
-                      control={form.control}
-                      name="model"
-                      render={({ field }) => (
-                        <FormItem>
-                          <div className="grid grid-cols-1 gap-2">
-                            {MODELS.map((m) => (
-                              <button
-                                key={m.value}
-                                type="button"
-                                data-testid={`model-${m.value}`}
-                                onClick={() => field.onChange(m.value)}
-                                className={cn(
-                                  "flex items-center justify-between px-3 py-2.5 rounded-md border text-left transition-colors",
-                                  field.value === m.value
-                                    ? "border-primary bg-primary/5 text-foreground"
-                                    : "border-border text-muted-foreground"
-                                )}
-                              >
-                                <span className="text-sm font-medium">{m.label}</span>
-                                <Badge variant={field.value === m.value ? "default" : "secondary"} className="text-xs">
-                                  {m.badge}
-                                </Badge>
-                              </button>
-                            ))}
+                {/* URL Input — Quick Setup */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Globe className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+                    <p className="text-xs font-semibold">Brand or Event URL</p>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground -mt-1">Paste any URL to extract colors, industry, and location</p>
+                  <div className="flex gap-2">
+                    <Input
+                      value={eventUrl}
+                      onChange={(e) => { setEventUrl(e.target.value); setScrapeError(null); }}
+                      placeholder="https://example.com"
+                      className="text-sm flex-1 h-9"
+                      data-testid="input-event-url"
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleScrape(); } }}
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={handleScrape}
+                      disabled={scrapeMutation.isPending}
+                      className="h-9 px-3"
+                      data-testid="button-scrape"
+                    >
+                      {scrapeMutation.isPending ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Globe className="h-3.5 w-3.5" />
+                      )}
+                      {scrapeMutation.isPending ? "Extracting..." : "Extract"}
+                    </Button>
+                  </div>
+
+                  {/* Scrape Error — Inline */}
+                  {scrapeError && (
+                    <div className="flex items-start gap-2 p-2.5 rounded-md bg-destructive/5 border border-destructive/20" data-testid="scrape-error">
+                      <AlertCircle className="h-3.5 w-3.5 text-destructive flex-shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-destructive font-medium">Couldn't analyze that URL</p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">{scrapeError}</p>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 text-xs px-2"
+                        onClick={handleScrape}
+                        data-testid="button-retry-scrape"
+                      >
+                        Try again
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Scrape Success */}
+                  {scrapeResult && !scrapeError && (
+                    <div className="p-2.5 rounded-md bg-primary/5 border border-primary/20">
+                      <div className="flex items-start gap-2">
+                        <Check className="h-3.5 w-3.5 text-primary mt-0.5 flex-shrink-0" />
+                        <div className="min-w-0 w-full">
+                          <p className="text-xs font-medium" data-testid="text-event-name">{scrapeResult.eventName}</p>
+                          <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                            <Badge variant="secondary" className="text-[10px] h-5" data-testid="badge-industry">{scrapeResult.industry}</Badge>
+                            {scrapeResult.city && (
+                              <Badge variant="outline" className="text-[10px] h-5" data-testid="badge-city">{scrapeResult.city}</Badge>
+                            )}
                           </div>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </CardContent>
-                </Card>
-
-                {/* Core Settings */}
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-semibold">Content</CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0 space-y-4">
-                    <FormField
-                      control={form.control}
-                      name="industry"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-xs font-medium">Industry</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger data-testid="select-industry">
-                                <SelectValue placeholder="Select industry" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {INDUSTRIES.map((ind) => (
-                                <SelectItem key={ind} value={ind}>{ind}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="style"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-xs font-medium">Visual Style</FormLabel>
-                          <div className="grid grid-cols-3 gap-1.5">
-                            {STYLES.map((s) => (
-                              <button
-                                key={s.value}
-                                type="button"
-                                data-testid={`style-${s.value}`}
-                                onClick={() => field.onChange(s.value)}
-                                className={cn(
-                                  "px-2 py-1.5 rounded-md border text-xs font-medium transition-colors",
-                                  field.value === s.value
-                                    ? "border-primary bg-primary/5 text-foreground"
-                                    : "border-border text-muted-foreground"
-                                )}
-                              >
-                                {s.label}
-                              </button>
+                          <div className="flex items-center gap-1.5 mt-2">
+                            {[scrapeResult.primaryColor, scrapeResult.secondaryColor, scrapeResult.accentColor].map((c, i) => (
+                              <div key={i} className="w-5 h-5 rounded border border-border flex-shrink-0" style={{ backgroundColor: c }} data-testid={`swatch-extracted-${i}`} />
                             ))}
+                            <span className="text-[10px] text-muted-foreground ml-1">Extracted palette</span>
                           </div>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
 
-                    <FormField
-                      control={form.control}
-                      name="aspectRatio"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-xs font-medium">Aspect Ratio</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger data-testid="select-aspect-ratio">
-                                <SelectValue />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {ASPECT_RATIOS.map((r) => (
-                                <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </CardContent>
-                </Card>
+                          {(scrapeResult.allColors || scrapeResult.screenshot) && (
+                            <button
+                              type="button"
+                              onClick={() => setShowColorDetails(!showColorDetails)}
+                              className="mt-1.5 text-[10px] text-primary/70 hover:text-primary flex items-center gap-1"
+                              data-testid="button-toggle-color-details"
+                            >
+                              {showColorDetails ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                              {showColorDetails ? "Hide details" : "Show analysis details"}
+                            </button>
+                          )}
 
-                {/* Color Palette */}
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-semibold">Color Palette</CardTitle>
-                    <CardDescription className="text-xs">Adjust colors, weights, and reorder with arrows</CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-0 space-y-4">
+                          {showColorDetails && (
+                            <div className="mt-2 space-y-2">
+                              {scrapeResult.screenshot && (
+                                <div className="rounded overflow-hidden border border-border">
+                                  <img src={`data:image/png;base64,${scrapeResult.screenshot}`} alt="Analyzed page" className="w-full h-auto" data-testid="img-screenshot" />
+                                </div>
+                              )}
+                              {scrapeResult.allColors && scrapeResult.allColors.length > 0 && (
+                                <div>
+                                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 font-medium">All detected colors</p>
+                                  <div className="flex flex-wrap gap-1">
+                                    {scrapeResult.allColors.map((c, i) => (
+                                      <div key={i} className="w-5 h-5 rounded border border-border cursor-default" style={{ backgroundColor: c.hex }} title={`${c.hex} (score: ${c.score})`} data-testid={`detected-color-${i}`} />
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <Separator />
+
+                {/* Visual Style — Above the fold */}
+                <FormField
+                  control={form.control}
+                  name="style"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs font-semibold">Visual Style</FormLabel>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {STYLES.map((s) => (
+                          <button
+                            key={s.value}
+                            type="button"
+                            data-testid={`style-${s.value}`}
+                            onClick={() => field.onChange(s.value)}
+                            className={cn(
+                              "px-2 py-2 rounded-md border text-xs font-medium transition-colors text-center",
+                              field.value === s.value
+                                ? "border-primary bg-primary/10 text-foreground"
+                                : "border-border text-muted-foreground hover:border-muted-foreground/30"
+                            )}
+                          >
+                            {s.label}
+                          </button>
+                        ))}
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Aspect Ratio — Visual Thumbnails */}
+                <FormField
+                  control={form.control}
+                  name="aspectRatio"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs font-semibold">Aspect Ratio</FormLabel>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {ASPECT_RATIOS.map((r) => (
+                          <button
+                            key={r.value}
+                            type="button"
+                            data-testid={`ratio-${r.value.replace(":", "-")}`}
+                            onClick={() => field.onChange(r.value)}
+                            className={cn(
+                              "flex flex-col items-center gap-1 p-1.5 rounded-md border transition-colors",
+                              field.value === r.value
+                                ? "border-primary bg-primary/10"
+                                : "border-border hover:border-muted-foreground/30"
+                            )}
+                          >
+                            <div className="flex items-center justify-center h-7">
+                              <div
+                                className={cn(
+                                  "border-2 rounded-sm",
+                                  field.value === r.value ? "border-primary" : "border-muted-foreground/40"
+                                )}
+                                style={{ width: `${r.w * 0.6}px`, height: `${r.h * 0.6}px` }}
+                              />
+                            </div>
+                            <span className={cn(
+                              "text-[10px] font-medium leading-none",
+                              field.value === r.value ? "text-foreground" : "text-muted-foreground"
+                            )}>
+                              {r.label}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* GENERATE BUTTON — Primary CTA */}
+                <Button
+                  type="submit"
+                  size="lg"
+                  className="w-full h-11 text-sm font-semibold"
+                  disabled={mutation.isPending}
+                  data-testid="button-generate"
+                >
+                  {mutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="h-4 w-4" />
+                      Generate Background
+                    </>
+                  )}
+                </Button>
+
+                <Separator />
+
+                {/* === PROGRESSIVE DISCLOSURE SECTIONS === */}
+
+                {/* Industry */}
+                <CollapsibleSection title="Industry" icon={Settings2} testId="section-industry">
+                  <FormField
+                    control={form.control}
+                    name="industry"
+                    render={({ field }) => (
+                      <FormItem>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-industry" className="h-9">
+                              <SelectValue placeholder="Select industry" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {INDUSTRIES.map((ind) => (
+                              <SelectItem key={ind} value={ind}>{ind}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[10px] text-muted-foreground">Adds industry-specific motifs and visual vocabulary</p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </CollapsibleSection>
+
+                {/* Colors & Palette */}
+                <CollapsibleSection title="Colors & Palette" icon={Palette} testId="section-colors">
+                  <div className="space-y-3">
                     <div>
                       <button
                         type="button"
                         onClick={() => setShowPresets(!showPresets)}
-                        className="flex items-center justify-between w-full text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                        className="flex items-center justify-between w-full text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
                         data-testid="button-toggle-presets"
                       >
                         <span>Presets</span>
-                        {showPresets ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                        {showPresets ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                       </button>
                       {showPresets && (
-                        <div className="grid grid-cols-3 gap-1.5 mt-2">
+                        <div className="grid grid-cols-3 gap-1 mt-1.5">
                           {PRESET_PALETTES.map((p) => (
                             <button
                               key={p.name}
                               type="button"
                               data-testid={`palette-${p.name.toLowerCase().replace(" ", "-")}`}
                               onClick={() => applyPalette(p)}
-                              className="flex flex-col items-center gap-1.5 p-2 rounded-md border border-border text-xs text-muted-foreground hover:border-primary/40 transition-colors"
+                              className="flex flex-col items-center gap-1 p-1.5 rounded-md border border-border text-[10px] text-muted-foreground hover:border-primary/40 transition-colors"
                             >
                               <div className="flex gap-0.5">
                                 <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.primary }} />
@@ -586,353 +721,147 @@ export default function GeneratorPage() {
 
                     <Separator />
 
-                    <div className="space-y-4">
-                      {colorFields.map((cf, index) => (
-                        <div key={cf.role} className="space-y-2" data-testid={`color-row-${cf.role}`}>
-                          <div className="flex items-center gap-2">
-                            <div className="flex flex-col gap-0.5">
-                              <button
-                                type="button"
-                                disabled={index === 0}
-                                onClick={() => swapColors(index, "up")}
-                                className="p-0.5 rounded hover:bg-muted disabled:opacity-20 transition-colors"
-                                data-testid={`button-color-up-${cf.role}`}
-                              >
-                                <ArrowUp className="h-3 w-3" />
-                              </button>
-                              <button
-                                type="button"
-                                disabled={index === colorFields.length - 1}
-                                onClick={() => swapColors(index, "down")}
-                                className="p-0.5 rounded hover:bg-muted disabled:opacity-20 transition-colors"
-                                data-testid={`button-color-down-${cf.role}`}
-                              >
-                                <ArrowDown className="h-3 w-3" />
-                              </button>
-                            </div>
-
-                            <FormField
-                              control={form.control}
-                              name={cf.colorKey as any}
-                              render={({ field }) => (
-                                <FormItem className="flex-1">
-                                  <div className="flex items-center justify-between gap-2">
-                                    <div className="flex items-center gap-2">
-                                      <input
-                                        type="color"
-                                        value={field.value as string || cf.defaultFallback}
-                                        onChange={(e) => field.onChange(e.target.value)}
-                                        className="w-7 h-7 rounded cursor-pointer border border-border"
-                                        data-testid={cf.testIdColor}
-                                      />
-                                      <FormLabel className="text-xs font-medium whitespace-nowrap mb-0">{cf.label}</FormLabel>
-                                    </div>
-                                    <Input
-                                      value={field.value as string}
-                                      onChange={(e) => field.onChange(e.target.value)}
-                                      className="w-24 h-7 text-xs font-mono uppercase"
-                                      placeholder={cf.defaultFallback}
-                                      data-testid={cf.testIdInput}
-                                    />
-                                  </div>
-                                </FormItem>
-                              )}
-                            />
+                    {colorFields.map((cf, index) => (
+                      <div key={cf.role} className="space-y-1.5" data-testid={`color-row-${cf.role}`}>
+                        <div className="flex items-center gap-1.5">
+                          <div className="flex flex-col gap-0">
+                            <button type="button" disabled={index === 0} onClick={() => swapColors(index, "up")} className="p-0.5 rounded hover:bg-muted disabled:opacity-20 transition-colors" data-testid={`button-color-up-${cf.role}`}>
+                              <ArrowUp className="h-2.5 w-2.5" />
+                            </button>
+                            <button type="button" disabled={index === colorFields.length - 1} onClick={() => swapColors(index, "down")} className="p-0.5 rounded hover:bg-muted disabled:opacity-20 transition-colors" data-testid={`button-color-down-${cf.role}`}>
+                              <ArrowDown className="h-2.5 w-2.5" />
+                            </button>
                           </div>
-
                           <FormField
                             control={form.control}
-                            name={cf.weightKey as any}
+                            name={cf.colorKey as any}
                             render={({ field }) => (
-                              <FormItem className="pl-8">
-                                <div className="flex items-center gap-3">
-                                  <Slider
-                                    min={0}
-                                    max={100}
-                                    step={5}
-                                    value={[field.value as number]}
-                                    onValueChange={([v]) => field.onChange(v)}
-                                    className="flex-1"
-                                    data-testid={cf.testIdWeight}
-                                  />
-                                  <span className="text-[11px] font-mono text-muted-foreground w-10 text-right">{field.value as number}%</span>
+                              <FormItem className="flex-1">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-1.5">
+                                    <input type="color" value={field.value as string || cf.defaultFallback} onChange={(e) => field.onChange(e.target.value)} className="w-6 h-6 rounded cursor-pointer border border-border" data-testid={cf.testIdColor} />
+                                    <span className="text-[11px] font-medium text-muted-foreground">{cf.label}</span>
+                                  </div>
+                                  <Input value={field.value as string} onChange={(e) => field.onChange(e.target.value)} className="w-20 h-6 text-[10px] font-mono uppercase px-1.5" placeholder={cf.defaultFallback} data-testid={cf.testIdInput} />
                                 </div>
                               </FormItem>
                             )}
                           />
                         </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Prompt Influence */}
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                      <SlidersHorizontal className="h-4 w-4 text-primary" />
-                      Prompt Influence
-                    </CardTitle>
-                    <CardDescription className="text-xs">Control how strongly each element appears in the image</CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-0 space-y-4">
-                    <FormField
-                      control={form.control}
-                      name="industryIntensity"
-                      render={({ field }) => (
-                        <FormItem>
-                          <div className="flex items-center justify-between mb-1">
-                            <FormLabel className="text-xs font-medium">Industry Motifs</FormLabel>
-                            <span className="text-[11px] text-muted-foreground">{intensityLabel(field.value as number)} ({field.value}%)</span>
-                          </div>
-                          <Slider
-                            min={0}
-                            max={100}
-                            step={5}
-                            value={[field.value as number]}
-                            onValueChange={([v]) => field.onChange(v)}
-                            data-testid="slider-industry-intensity"
-                          />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="styleIntensity"
-                      render={({ field }) => (
-                        <FormItem>
-                          <div className="flex items-center justify-between mb-1">
-                            <FormLabel className="text-xs font-medium">Visual Style</FormLabel>
-                            <span className="text-[11px] text-muted-foreground">{intensityLabel(field.value as number)} ({field.value}%)</span>
-                          </div>
-                          <Slider
-                            min={0}
-                            max={100}
-                            step={5}
-                            value={[field.value as number]}
-                            onValueChange={([v]) => field.onChange(v)}
-                            data-testid="slider-style-intensity"
-                          />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="cityIntensity"
-                      render={({ field }) => (
-                        <FormItem>
-                          <div className="flex items-center justify-between mb-1">
-                            <FormLabel className="text-xs font-medium">City / Location</FormLabel>
-                            <span className="text-[11px] text-muted-foreground">{intensityLabel(field.value as number)} ({field.value}%)</span>
-                          </div>
-                          <Slider
-                            min={0}
-                            max={100}
-                            step={5}
-                            value={[field.value as number]}
-                            onValueChange={([v]) => field.onChange(v)}
-                            data-testid="slider-city-intensity"
-                          />
-                        </FormItem>
-                      )}
-                    />
-                  </CardContent>
-                </Card>
-
-                {/* Advanced Settings */}
-                <Card>
-                  <button
-                    type="button"
-                    onClick={() => setShowAdvanced(!showAdvanced)}
-                    className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold"
-                    data-testid="button-toggle-advanced"
-                  >
-                    <span>Advanced Options</span>
-                    {showAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  </button>
-
-                  {showAdvanced && (
-                    <CardContent className="pt-0 space-y-4 border-t">
-                      <div className="pt-3">
                         <FormField
                           control={form.control}
-                          name="city"
+                          name={cf.weightKey as any}
                           render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="text-xs font-medium">City / Location</FormLabel>
-                              <FormControl>
-                                <Input
-                                  {...field}
-                                  placeholder="e.g. Tokyo, New York, Paris..."
-                                  className="text-sm"
-                                  data-testid="input-city"
-                                />
-                              </FormControl>
-                              <p className="text-xs text-muted-foreground">Incorporate city skyline or landmarks</p>
+                            <FormItem className="pl-6">
+                              <div className="flex items-center gap-2">
+                                <Slider min={0} max={100} step={5} value={[field.value as number]} onValueChange={([v]) => field.onChange(v)} className="flex-1" data-testid={cf.testIdWeight} />
+                                <span className="text-[10px] font-mono text-muted-foreground w-8 text-right">{field.value as number}%</span>
+                              </div>
                             </FormItem>
                           )}
                         />
                       </div>
+                    ))}
+                  </div>
+                </CollapsibleSection>
 
+                {/* Fine-Tune (Intensity Sliders) */}
+                <CollapsibleSection title="Fine-Tune" icon={SlidersHorizontal} testId="section-fine-tune">
+                  <div className="space-y-3">
+                    {([
+                      { name: "industryIntensity" as const, label: "Industry Motifs", testId: "slider-industry-intensity" },
+                      { name: "styleIntensity" as const, label: "Visual Style", testId: "slider-style-intensity" },
+                      { name: "cityIntensity" as const, label: "City / Location", testId: "slider-city-intensity" },
+                    ]).map((item) => (
                       <FormField
+                        key={item.name}
                         control={form.control}
-                        name="customPrompt"
+                        name={item.name}
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-xs font-medium">Additional Instructions</FormLabel>
-                            <FormControl>
-                              <Textarea
-                                {...field}
-                                placeholder="e.g. rainy evening atmosphere, neon reflections, warm bokeh..."
-                                className="text-sm resize-none"
-                                rows={3}
-                                data-testid="textarea-custom-prompt"
-                              />
-                            </FormControl>
+                            <div className="flex items-center justify-between mb-0.5">
+                              <FormLabel className="text-[11px] font-medium">{item.label}</FormLabel>
+                              <span className="text-[10px] text-muted-foreground">{intensityLabel(field.value as number)} ({field.value}%)</span>
+                            </div>
+                            <Slider min={0} max={100} step={5} value={[field.value as number]} onValueChange={([v]) => field.onChange(v)} data-testid={item.testId} />
                           </FormItem>
                         )}
                       />
-                    </CardContent>
-                  )}
-                </Card>
+                    ))}
+                  </div>
+                </CollapsibleSection>
 
-                <Button
-                  type="submit"
-                  size="lg"
-                  className="w-full"
-                  disabled={mutation.isPending}
-                  data-testid="button-generate"
-                >
-                  {mutation.isPending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Wand2 className="h-4 w-4" />
-                      Generate Background
-                    </>
-                  )}
-                </Button>
+                {/* Advanced (City, Custom Prompt, Model) */}
+                <CollapsibleSection title="Advanced" icon={Settings2} testId="section-advanced">
+                  <div className="space-y-3">
+                    <FormField
+                      control={form.control}
+                      name="city"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-[11px] font-medium flex items-center gap-1.5">
+                            <MapPin className="h-3 w-3" />
+                            City / Location
+                          </FormLabel>
+                          <FormControl>
+                            <Input {...field} placeholder="e.g. Tokyo, New York, Paris..." className="text-sm h-8" data-testid="input-city" />
+                          </FormControl>
+                          <p className="text-[10px] text-muted-foreground">Adds skyline, landmarks, and cultural cues</p>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="customPrompt"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-[11px] font-medium">Additional Instructions</FormLabel>
+                          <FormControl>
+                            <Textarea {...field} placeholder="e.g. rainy evening atmosphere, neon reflections..." className="text-sm resize-none" rows={2} data-testid="textarea-custom-prompt" />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+
+                    <Separator />
+
+                    <FormField
+                      control={form.control}
+                      name="model"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-[11px] font-medium">Model</FormLabel>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            {MODELS.map((m) => (
+                              <button
+                                key={m.value}
+                                type="button"
+                                data-testid={`model-${m.value}`}
+                                onClick={() => field.onChange(m.value)}
+                                className={cn(
+                                  "flex items-center justify-between px-2.5 py-2 rounded-md border text-left transition-colors",
+                                  field.value === m.value
+                                    ? "border-primary bg-primary/10 text-foreground"
+                                    : "border-border text-muted-foreground hover:border-muted-foreground/30"
+                                )}
+                              >
+                                <span className="text-[11px] font-medium">{m.label}</span>
+                                <Badge variant={field.value === m.value ? "default" : "secondary"} className="text-[9px] h-4 px-1.5">
+                                  {m.badge}
+                                </Badge>
+                              </button>
+                            ))}
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </CollapsibleSection>
+
               </form>
             </Form>
-          </div>
-
-          {/* Preview Panel */}
-          <div className="space-y-4">
-            <Card className="overflow-visible">
-              <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2">
-                <div>
-                  <CardTitle className="text-sm font-semibold">Preview</CardTitle>
-                  <CardDescription className="text-xs">
-                    {result ? "Your generated background" : "Generated image will appear here"}
-                  </CardDescription>
-                </div>
-                {result && (
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setShowPrompt(!showPrompt)}
-                      data-testid="button-toggle-prompt"
-                    >
-                      {showPrompt ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                      {showPrompt ? "Hide" : "Prompt"}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={downloadImage}
-                      data-testid="button-download"
-                    >
-                      <Download className="h-3.5 w-3.5" />
-                      Download
-                    </Button>
-                  </div>
-                )}
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div
-                  className={cn(
-                    "w-full rounded-md border border-border overflow-hidden bg-muted/30",
-                    ASPECT_RATIO_CSS[selectedRatio] || "aspect-video"
-                  )}
-                >
-                  {mutation.isPending ? (
-                    <div className="w-full h-full flex flex-col items-center justify-center gap-4">
-                      <div className="relative">
-                        <div className="w-16 h-16 rounded-full border-4 border-muted animate-spin border-t-primary" />
-                        <Sparkles className="absolute inset-0 m-auto h-6 w-6 text-primary" />
-                      </div>
-                      <div className="text-center">
-                        <p className="text-sm font-medium">Generating your image...</p>
-                        <p className="text-xs text-muted-foreground mt-1">This may take 15-30 seconds</p>
-                      </div>
-                    </div>
-                  ) : result ? (
-                    <img
-                      src={`data:${result.mimeType};base64,${result.imageData}`}
-                      alt="Generated social background"
-                      className="w-full h-full object-cover"
-                      data-testid="img-generated"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center gap-3 text-muted-foreground">
-                      <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
-                        <Wand2 className="h-7 w-7 text-muted-foreground/50" />
-                      </div>
-                      <div className="text-center">
-                        <p className="text-sm font-medium">Ready to generate</p>
-                        <p className="text-xs mt-1 opacity-70">Configure settings and click Generate</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {result && showPrompt && (
-                  <div className="mt-3 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Generated Prompt</p>
-                      <Button size="sm" variant="ghost" onClick={copyPrompt} data-testid="button-copy-prompt">
-                        <Copy className="h-3.5 w-3.5" />
-                        Copy
-                      </Button>
-                    </div>
-                    <div className="bg-muted/50 rounded-md p-3 text-xs text-muted-foreground leading-relaxed font-mono max-h-48 overflow-y-auto">
-                      {result.prompt}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Tips Card */}
-            {!result && !mutation.isPending && (
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-semibold">Prompt Tips</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0 space-y-2">
-                  {[
-                    "Leave generous negative space — your text overlay needs room",
-                    "Use a tight palette (3 colors max) for professional results",
-                    "Gradient style works best for clean text backgrounds",
-                    "Add a city for unique localized imagery with cultural cues",
-                    "Nano Banana Pro is best for precision layouts with text inside",
-                    "Adjust intensity sliders to control how much each element shows",
-                    "Reorder colors with arrows — the top color gets highest weight",
-                  ].map((tip, i) => (
-                    <div key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
-                      <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 flex-shrink-0" />
-                      <span>{tip}</span>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
           </div>
         </div>
       </div>

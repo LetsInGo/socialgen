@@ -16,6 +16,12 @@ Users configure generation parameters (industry, visual style, aspect ratio, col
 
 ## Key Features
 
+- **Preview-dominant layout**: Large preview hero panel (left, ~65%) with compact config panel (right, ~35%). Preview is the focal point, not the form.
+- **Progressive disclosure**: Config sections (Industry, Colors, Fine-Tune, Advanced) collapse behind toggles. Only URL input, style picker, and Generate button visible above the fold.
+- **Skeleton shimmer loading**: Premium shimmer animation in preview area during generation. Error states shown inline in preview with retry buttons.
+- **Contextual Pro upsell**: After generating with Fast model, a subtle banner suggests trying Pro — not buried in the form.
+- **Inline error states**: URL analysis failures and generation errors shown in context with actionable "Try again" buttons, not just toast notifications.
+- **Dark mode default**: New users see dark mode by default. Light mode available via toggle. Theme persisted in localStorage.
 - **Headless browser scraping**: Uses Puppeteer + Chromium to render JavaScript-heavy sites, extract computed styles from the live DOM, take screenshots, and fetch key images (OG image, logo, favicon)
 - **Multimodal AI analysis**: Sends page screenshots + key images + scored color data to Gemini for visual brand color identification — sees the actual page, not just raw HTML
 - **Color scoring engine**: Weights colors by element importance (logo 5x, hero/CTA 4x, nav/header 3x, headings 2x, body 1x), merges near-duplicates, filters common defaults, and highlights CSS variables with brand-related names
@@ -23,12 +29,12 @@ Users configure generation parameters (industry, visual style, aspect ratio, col
 - **Industry motifs**: 15 industries with curated visual vocabulary
 - **Color palette**: 6 preset palettes + custom RGB/hex color pickers + per-color weight sliders (0-100%) + arrow buttons to reorder colors (moving a color up gives it a higher weight position)
 - **Prompt influence sliders**: Industry motifs, visual style, and city/location intensity (0-100, mapped to language levels from "barely perceptible" to "overwhelming/maximalist")
-- **Aspect ratios**: 7 standard social ratios (1:1, 16:9, 9:16, 4:5, 3:2, 2:3, 21:9)
+- **Aspect ratios**: 7 standard social ratios rendered as visual thumbnails (shape previews, not a dropdown)
 - **Visual styles**: 6 styles (photorealistic, illustration, abstract, minimalist, gradient, editorial)
-- **Model selection**: Nano Banana (fast) vs Nano Banana Pro (high fidelity)
+- **Model selection**: Nano Banana (fast) vs Nano Banana Pro (high fidelity) — in Advanced section, with contextual upsell post-generation
 - **City/location**: Optional city backdrop with cultural cues and intensity control
 - **Generation history**: Browse, preview, download, and delete past generations
-- **Dark/light mode**: Full theme toggle with persistence
+- **Prompt reveal**: "View prompt used" toggle beneath preview, shows the exact prompt sent to AI with copy button
 
 ## Pages
 
