@@ -85,16 +85,27 @@ interface GeneratedResult {
   createdAt: string;
 }
 
+interface ScrapeColorInfo {
+  hex: string;
+  score: number;
+  sources: string[];
+}
+
 interface ScrapeResult {
   eventName: string;
   industry: string;
   style: string;
   primaryColor: string;
+  primaryConfidence: number;
   secondaryColor: string;
+  secondaryConfidence: number;
   accentColor: string;
+  accentConfidence: number;
   city: string;
   customPrompt: string;
   summary: string;
+  screenshot?: string;
+  allColors?: ScrapeColorInfo[];
 }
 
 export default function GeneratorPage() {
@@ -105,6 +116,7 @@ export default function GeneratorPage() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [eventUrl, setEventUrl] = useState("");
   const [scrapeResult, setScrapeResult] = useState<ScrapeResult | null>(null);
+  const [showColorDetails, setShowColorDetails] = useState(false);
 
   const form = useForm<ImageGenerationConfig>({
     resolver: zodResolver(imageGenerationConfigSchema),
@@ -276,22 +288,84 @@ export default function GeneratorPage() {
                   <div className="mt-3 p-3 rounded-md bg-primary/5 border border-primary/20">
                     <div className="flex items-start gap-2">
                       <Check className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium">{scrapeResult.eventName}</p>
+                      <div className="min-w-0 w-full">
+                        <p className="text-sm font-medium" data-testid="text-event-name">{scrapeResult.eventName}</p>
                         {scrapeResult.summary && (
-                          <p className="text-xs text-muted-foreground mt-0.5">{scrapeResult.summary}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5" data-testid="text-event-summary">{scrapeResult.summary}</p>
                         )}
                         <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                          <Badge variant="secondary" className="text-xs">{scrapeResult.industry}</Badge>
+                          <Badge variant="secondary" className="text-xs" data-testid="badge-industry">{scrapeResult.industry}</Badge>
                           {scrapeResult.city && (
-                            <Badge variant="outline" className="text-xs">{scrapeResult.city}</Badge>
+                            <Badge variant="outline" className="text-xs" data-testid="badge-city">{scrapeResult.city}</Badge>
                           )}
-                          <div className="flex gap-0.5 ml-1">
-                            <div className="w-3 h-3 rounded-sm border border-border" style={{ backgroundColor: scrapeResult.primaryColor }} />
-                            <div className="w-3 h-3 rounded-sm border border-border" style={{ backgroundColor: scrapeResult.secondaryColor }} />
-                            <div className="w-3 h-3 rounded-sm border border-border" style={{ backgroundColor: scrapeResult.accentColor }} />
-                          </div>
                         </div>
+
+                        <div className="mt-3 space-y-1.5">
+                          {[
+                            { label: "Primary", color: scrapeResult.primaryColor, confidence: scrapeResult.primaryConfidence },
+                            { label: "Secondary", color: scrapeResult.secondaryColor, confidence: scrapeResult.secondaryConfidence },
+                            { label: "Accent", color: scrapeResult.accentColor, confidence: scrapeResult.accentConfidence },
+                          ].map((c) => (
+                            <div key={c.label} className="flex items-center gap-2" data-testid={`swatch-${c.label.toLowerCase()}`}>
+                              <div
+                                className="w-5 h-5 rounded border border-border flex-shrink-0"
+                                style={{ backgroundColor: c.color }}
+                              />
+                              <span className="text-xs font-mono text-muted-foreground uppercase">{c.color}</span>
+                              <span className="text-[10px] text-muted-foreground">{c.label}</span>
+                              {c.confidence > 0 && (
+                                <span className="text-[10px] text-muted-foreground/70 ml-auto">{c.confidence}%</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+
+                        {(scrapeResult.allColors || scrapeResult.screenshot) && (
+                          <button
+                            type="button"
+                            onClick={() => setShowColorDetails(!showColorDetails)}
+                            className="mt-2 text-[11px] text-primary/70 hover:text-primary flex items-center gap-1"
+                            data-testid="button-toggle-color-details"
+                          >
+                            {showColorDetails ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                            {showColorDetails ? "Hide details" : "Show analysis details"}
+                          </button>
+                        )}
+
+                        {showColorDetails && (
+                          <div className="mt-2 space-y-2">
+                            {scrapeResult.screenshot && (
+                              <div className="rounded overflow-hidden border border-border">
+                                <img
+                                  src={`data:image/png;base64,${scrapeResult.screenshot}`}
+                                  alt="Analyzed page screenshot"
+                                  className="w-full h-auto"
+                                  data-testid="img-screenshot"
+                                />
+                              </div>
+                            )}
+                            {scrapeResult.allColors && scrapeResult.allColors.length > 0 && (
+                              <div>
+                                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 font-medium">All detected colors</p>
+                                <div className="flex flex-wrap gap-1">
+                                  {scrapeResult.allColors.map((c, i) => (
+                                    <div
+                                      key={i}
+                                      className="group relative"
+                                      data-testid={`detected-color-${i}`}
+                                    >
+                                      <div
+                                        className="w-6 h-6 rounded border border-border cursor-default"
+                                        style={{ backgroundColor: c.hex }}
+                                        title={`${c.hex} (score: ${c.score})\nFound in: ${c.sources.join(", ")}`}
+                                      />
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

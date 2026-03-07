@@ -4,6 +4,13 @@ import { storage } from "./storage";
 import { GoogleGenAI, Modality } from "@google/genai";
 import { imageGenerationConfigSchema } from "@shared/schema";
 import { z } from "zod";
+import {
+  launchAndNavigate,
+  closeBrowser,
+  extractDomColors,
+  extractKeyImages,
+  scoreAndRankColors,
+} from "./scraper";
 
 const ai = new GoogleGenAI({
   apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
@@ -109,75 +116,6 @@ function isUrlSafe(urlString: string): boolean {
   }
 }
 
-async function fetchWebsiteContent(url: string): Promise<string> {
-  if (!isUrlSafe(url)) {
-    throw new Error("URL must be a public website (http or https)");
-  }
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000);
-  try {
-    const response = await fetch(url, {
-      signal: controller.signal,
-      redirect: "follow",
-      headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; NanoBananaBot/1.0)",
-        "Accept": "text/html,application/xhtml+xml",
-      },
-    });
-    if (!response.ok) {
-      throw new Error(`Website returned status ${response.status}`);
-    }
-    const html = await response.text();
-    const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-    const title = titleMatch ? titleMatch[1].trim() : "";
-    const metaDesc = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([\s\S]*?)["']/i);
-    const description = metaDesc ? metaDesc[1].trim() : "";
-    const metaKw = html.match(/<meta[^>]*name=["']keywords["'][^>]*content=["']([\s\S]*?)["']/i);
-    const keywords = metaKw ? metaKw[1].trim() : "";
-    const ogImage = html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([\s\S]*?)["']/i);
-    const ogImg = ogImage ? ogImage[1].trim() : "";
-    const ogTitle = html.match(/<meta[^>]*property=["']og:title["'][^>]*content=["']([\s\S]*?)["']/i);
-    const ogT = ogTitle ? ogTitle[1].trim() : "";
-    const ogDesc = html.match(/<meta[^>]*property=["']og:description["'][^>]*content=["']([\s\S]*?)["']/i);
-    const ogD = ogDesc ? ogDesc[1].trim() : "";
-
-    const colorMatches = new Set<string>();
-    const hexPattern = /#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b/g;
-    let match;
-    while ((match = hexPattern.exec(html)) !== null && colorMatches.size < 30) {
-      colorMatches.add(match[0]);
-    }
-
-    const rgbPattern = /rgb[a]?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/g;
-    while ((match = rgbPattern.exec(html)) !== null && colorMatches.size < 40) {
-      const r = parseInt(match[1]).toString(16).padStart(2, "0");
-      const g = parseInt(match[2]).toString(16).padStart(2, "0");
-      const b = parseInt(match[3]).toString(16).padStart(2, "0");
-      colorMatches.add(`#${r}${g}${b}`);
-    }
-
-    const stripped = html
-      .replace(/<script[\s\S]*?<\/script>/gi, "")
-      .replace(/<style[\s\S]*?<\/style>/gi, "")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-    const bodyText = stripped.slice(0, 4000);
-
-    return `URL: ${url}
-Title: ${title}
-OG Title: ${ogT}
-Description: ${description}
-OG Description: ${ogD}
-Keywords: ${keywords}
-OG Image: ${ogImg}
-Colors found in CSS/HTML: ${Array.from(colorMatches).join(", ")}
-Page text (first 4000 chars): ${bodyText}`;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
 const INDUSTRIES_LIST = Object.keys(INDUSTRY_MOTIFS);
 const STYLES_LIST = ["photorealistic", "illustration", "abstract", "minimalist", "gradient", "editorial"];
 
@@ -198,71 +136,154 @@ export async function registerRoutes(
         normalizedUrl = "https://" + normalizedUrl;
       }
 
-      let websiteContent: string;
-      try {
-        websiteContent = await fetchWebsiteContent(normalizedUrl);
-      } catch (err: any) {
-        return res.status(400).json({ error: `Could not fetch website: ${err.message}` });
+      if (!isUrlSafe(normalizedUrl)) {
+        return res.status(400).json({ error: "URL must be a public website (http or https)" });
       }
 
-      const analysisPrompt = `You are analyzing an event or brand website to extract visual design parameters for generating a social media background image.
+      let browserResult;
+      try {
+        browserResult = await launchAndNavigate(normalizedUrl);
+      } catch (err: any) {
+        return res.status(400).json({ error: `Could not load website: ${err.message}` });
+      }
 
-Here is the website content:
+      try {
+        const [domResult, keyImages] = await Promise.all([
+          extractDomColors(browserResult.page),
+          extractKeyImages(browserResult.page, browserResult.screenshot, normalizedUrl),
+        ]);
+
+        const scoredColors = scoreAndRankColors(domResult.colors);
+
+        const colorListText = scoredColors
+          .slice(0, 20)
+          .map((c, i) => `${i + 1}. ${c.hex} (score: ${c.score.toFixed(1)}, found in: ${c.sources.join(", ")})`)
+          .join("\n");
+
+        const brandCssVars = domResult.metadata.cssVariables
+          .filter((v) => /brand|primary|secondary|accent|main|theme/i.test(v.name))
+          .map((v) => `${v.name}: ${v.value}`)
+          .join(", ");
+
+        const textContext = `URL: ${normalizedUrl}
+Title: ${domResult.metadata.title}
+OG Title: ${domResult.metadata.ogTitle}
+Description: ${domResult.metadata.description}
+OG Description: ${domResult.metadata.ogDescription}
+Keywords: ${domResult.metadata.keywords}
+Theme Color (meta): ${domResult.metadata.themeColor || "none"}
+
+Top colors extracted from rendered page (scored by importance — logo, nav, hero, CTA elements weighted highest):
+${colorListText}
+
+${brandCssVars ? `Brand-related CSS variables: ${brandCssVars}` : ""}
+
+Page text (first 3000 chars): ${domResult.metadata.bodyText.slice(0, 3000)}`;
+
+        const parts: any[] = [];
+
+        for (const img of keyImages) {
+          parts.push({
+            inlineData: {
+              mimeType: img.mimeType,
+              data: img.base64,
+            },
+          });
+        }
+
+        const analysisPrompt = `You are a brand identity expert analyzing a website to extract its core brand color palette and details for generating social media background images.
+
+You have been given:
+1. A screenshot of the website (look at the actual visual appearance)
+${keyImages.length > 1 ? `2. ${keyImages.length - 1} additional image(s) from the site (logo, OG image, etc.)` : ""}
+3. Text data including scored colors extracted from the rendered DOM
+
+IMPORTANT: LOOK at the screenshot and images carefully. The brand's true colors are most visible in:
+- The hero/banner area
+- The logo
+- Navigation bar
+- Call-to-action buttons
+- Overall color scheme visible in the screenshot
+
+Cross-reference what you SEE in the images with the scored color list below.
+
 ---
-${websiteContent}
+${textContext}
 ---
 
-Based on this website, extract the following and respond ONLY with valid JSON (no markdown, no code fences):
+Respond ONLY with valid JSON (no markdown, no code fences):
 
 {
   "eventName": "name of the event or brand",
   "industry": "one of: ${INDUSTRIES_LIST.join(", ")}",
   "style": "one of: ${STYLES_LIST.join(", ")} — pick the one that best matches the event's visual identity",
-  "primaryColor": "hex color — the dominant brand/event color from the website",
-  "secondaryColor": "hex color — a complementary dark or contrasting color from the website",
-  "accentColor": "hex color — a highlight or accent color from the website",
+  "primaryColor": "hex color — the dominant brand color (most prominent in logo, hero, and overall visual identity)",
+  "primaryConfidence": 0-100,
+  "secondaryColor": "hex color — a complementary or supporting brand color",
+  "secondaryConfidence": 0-100,
+  "accentColor": "hex color — highlight or accent color used for CTAs, links, or emphasis",
+  "accentConfidence": 0-100,
   "city": "the city or location where the event takes place (empty string if not found)",
-  "customPrompt": "a brief 1-2 sentence description of the event's visual mood, theme, or atmosphere that should influence the background image",
+  "customPrompt": "a brief 1-2 sentence description of the event's visual mood, theme, or atmosphere",
   "summary": "a 1-2 sentence summary of what this event/brand is about"
 }
 
 Rules:
-- For colors, prefer actual brand colors found on the site. Avoid common CSS defaults (#000, #fff, #333, #666, etc). Pick distinctive, on-brand colors.
-- For industry, pick the closest match from the provided list.
-- For style, consider the website's design language (corporate = minimalist, creative = abstract, etc).
-- If you can't determine a field, make your best reasonable guess based on context.`;
+- For colors, prioritize what you can SEE in the screenshot and images over the CSS color list.
+- The CSS scored list is a helpful reference but the visual analysis should take priority.
+- Avoid generic colors (#000, #fff, #333) unless they are genuinely part of the brand identity (e.g., a luxury brand with a black-and-white scheme).
+- Pick distinctive, on-brand colors that a designer would recognize as "this brand's colors".
+- Confidence should reflect how certain you are that each color truly represents the brand.`;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: [{ role: "user", parts: [{ text: analysisPrompt }] }],
-      });
+        parts.push({ text: analysisPrompt });
 
-      const text = response.text || "";
-      const jsonMatch = text.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/);
-      if (!jsonMatch) {
-        return res.status(500).json({ error: "Could not extract structured data from this website. Try a different URL." });
+        const response = await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: [{ role: "user", parts }],
+        });
+
+        const text = response.text || "";
+
+        let parsed: any;
+        try {
+          const cleaned = text.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+          const braceStart = cleaned.indexOf("{");
+          const braceEnd = cleaned.lastIndexOf("}");
+          if (braceStart === -1 || braceEnd === -1 || braceEnd <= braceStart) {
+            return res.status(500).json({ error: "Could not extract structured data from this website. Try a different URL." });
+          }
+          parsed = JSON.parse(cleaned.substring(braceStart, braceEnd + 1));
+        } catch {
+          return res.status(500).json({ error: "Could not parse analysis result. Try again." });
+        }
+
+        const screenshotBase64 = browserResult.screenshot.toString("base64");
+
+        const result = {
+          eventName: typeof parsed.eventName === "string" ? parsed.eventName : "Unknown Event",
+          industry: INDUSTRIES_LIST.includes(parsed.industry) ? parsed.industry : "Technology / SaaS",
+          style: STYLES_LIST.includes(parsed.style) ? parsed.style : "gradient",
+          primaryColor: typeof parsed.primaryColor === "string" && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(parsed.primaryColor) ? parsed.primaryColor : "#0A84FF",
+          primaryConfidence: typeof parsed.primaryConfidence === "number" ? Math.min(100, Math.max(0, parsed.primaryConfidence)) : 50,
+          secondaryColor: typeof parsed.secondaryColor === "string" && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(parsed.secondaryColor) ? parsed.secondaryColor : "#0B1F3B",
+          secondaryConfidence: typeof parsed.secondaryConfidence === "number" ? Math.min(100, Math.max(0, parsed.secondaryConfidence)) : 50,
+          accentColor: typeof parsed.accentColor === "string" && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(parsed.accentColor) ? parsed.accentColor : "#64D2FF",
+          accentConfidence: typeof parsed.accentConfidence === "number" ? Math.min(100, Math.max(0, parsed.accentConfidence)) : 50,
+          city: typeof parsed.city === "string" ? parsed.city : "",
+          customPrompt: typeof parsed.customPrompt === "string" ? parsed.customPrompt : "",
+          summary: typeof parsed.summary === "string" ? parsed.summary : "",
+          screenshot: screenshotBase64,
+          allColors: scoredColors.slice(0, 10).map((c) => ({
+            hex: c.hex,
+            score: Math.round(c.score * 10) / 10,
+            sources: c.sources,
+          })),
+        };
+
+        res.json(result);
+      } finally {
+        await closeBrowser(browserResult.browser);
       }
-
-      let parsed: any;
-      try {
-        parsed = JSON.parse(jsonMatch[0]);
-      } catch {
-        return res.status(500).json({ error: "Could not parse analysis result. Try again." });
-      }
-
-      const result = {
-        eventName: typeof parsed.eventName === "string" ? parsed.eventName : "Unknown Event",
-        industry: INDUSTRIES_LIST.includes(parsed.industry) ? parsed.industry : "Technology / SaaS",
-        style: STYLES_LIST.includes(parsed.style) ? parsed.style : "gradient",
-        primaryColor: typeof parsed.primaryColor === "string" && /^#[0-9a-fA-F]{3,6}$/.test(parsed.primaryColor) ? parsed.primaryColor : "#0A84FF",
-        secondaryColor: typeof parsed.secondaryColor === "string" && /^#[0-9a-fA-F]{3,6}$/.test(parsed.secondaryColor) ? parsed.secondaryColor : "#0B1F3B",
-        accentColor: typeof parsed.accentColor === "string" && /^#[0-9a-fA-F]{3,6}$/.test(parsed.accentColor) ? parsed.accentColor : "#64D2FF",
-        city: typeof parsed.city === "string" ? parsed.city : "",
-        customPrompt: typeof parsed.customPrompt === "string" ? parsed.customPrompt : "",
-        summary: typeof parsed.summary === "string" ? parsed.summary : "",
-      };
-
-      res.json(result);
     } catch (error: any) {
       console.error("Scrape error:", error);
       res.status(500).json({ error: error.message || "Failed to analyze website" });

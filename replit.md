@@ -12,10 +12,13 @@ Users configure generation parameters (industry, visual style, aspect ratio, col
 - **Backend**: Express.js server
 - **AI**: Google Gemini image generation via Replit AI Integrations (no API key needed)
 - **Storage**: In-memory (MemStorage) — images stored as base64 in server memory
+- **Browser automation**: Puppeteer-core + system Chromium for headless website rendering
 
 ## Key Features
 
-- **URL scraping auto-fill**: Paste an event/brand website URL and the app scrapes it to automatically extract brand colors, industry, city/location, style, and mood — then populates the entire form
+- **Headless browser scraping**: Uses Puppeteer + Chromium to render JavaScript-heavy sites, extract computed styles from the live DOM, take screenshots, and fetch key images (OG image, logo, favicon)
+- **Multimodal AI analysis**: Sends page screenshots + key images + scored color data to Gemini for visual brand color identification — sees the actual page, not just raw HTML
+- **Color scoring engine**: Weights colors by element importance (logo 5x, hero/CTA 4x, nav/header 3x, headings 2x, body 1x), merges near-duplicates, filters common defaults, and highlights CSS variables with brand-related names
 - **Smart prompt builder**: Automatically constructs detailed, structured prompts from user inputs
 - **Industry motifs**: 15 industries with curated visual vocabulary
 - **Color palette**: 6 preset palettes + custom RGB/hex color pickers
@@ -33,16 +36,29 @@ Users configure generation parameters (industry, visual style, aspect ratio, col
 
 ## API Endpoints
 
-- `POST /api/scrape-event` — Scrape a website URL and extract brand/event details via AI analysis
+- `POST /api/scrape-event` — Scrape a website via headless browser, extract DOM colors, take screenshot, fetch key images, then send all to Gemini multimodal for brand color analysis. Returns colors with confidence scores and screenshot.
 - `POST /api/generate` — Generate a new image (accepts ImageGenerationConfig)
 - `GET /api/history` — Get recent 20 generated images
 - `GET /api/history/:id` — Get a specific image
 - `DELETE /api/history/:id` — Delete an image
 
+## Scraper Architecture (`server/scraper/`)
+
+- `browser.ts` — Launches headless Chromium, navigates to URL, takes viewport screenshot
+- `dom-colors.ts` — Runs `page.evaluate()` to extract computed styles from high-priority elements (nav, header, hero, logo, CTA, headings), CSS variables, and meta tags (theme-color)
+- `image-colors.ts` — Identifies and fetches key images (OG image, logo, favicon, apple-touch-icon) for Gemini visual analysis
+- `color-scoring.ts` — Scores, merges near-duplicate shades, filters generic defaults, and ranks colors by importance
+- `index.ts` — Barrel exports
+
 ## Environment Variables
 
 - `AI_INTEGRATIONS_GEMINI_API_KEY` — Provided by Replit AI Integrations
 - `AI_INTEGRATIONS_GEMINI_BASE_URL` — Provided by Replit AI Integrations
+
+## System Dependencies
+
+- Chromium (system Nix package) at `/nix/store/.../bin/chromium`
+- `puppeteer-core` npm package (uses system Chromium, no bundled browser)
 
 ## Models
 
