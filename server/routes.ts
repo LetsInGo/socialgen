@@ -237,10 +237,33 @@ Rules:
 
         parts.push({ text: analysisPrompt });
 
-        const response = await ai.models.generateContent({
-          model: "gemini-2.5-flash",
-          contents: [{ role: "user", parts }],
-        });
+        let response;
+        try {
+          response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: [{ role: "user", parts }],
+          });
+        } catch (apiErr: any) {
+          const apiMsg = apiErr?.message || "";
+          if (apiMsg.includes("INVALID_ARGUMENT") && keyImages.length > 1) {
+            console.log("[scraper] Gemini rejected images, retrying with screenshot only...");
+            const screenshotOnlyParts = [
+              {
+                inlineData: {
+                  mimeType: "image/png",
+                  data: keyImages[0].base64,
+                },
+              },
+              { text: analysisPrompt },
+            ];
+            response = await ai.models.generateContent({
+              model: "gemini-2.5-flash",
+              contents: [{ role: "user", parts: screenshotOnlyParts }],
+            });
+          } else {
+            throw apiErr;
+          }
+        }
 
         const text = response.text || "";
 

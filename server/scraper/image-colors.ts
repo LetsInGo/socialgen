@@ -113,7 +113,11 @@ export async function extractKeyImages(
       if (fullUrl.startsWith("data:")) {
         const match = fullUrl.match(/^data:([^;]+);base64,(.+)$/);
         if (match) {
-          images.push({ base64: match[2], mimeType: match[1], source: imgInfo.source });
+          const dataMime = match[1].toLowerCase();
+          const dataSupportedTypes = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+          if (dataSupportedTypes.includes(dataMime)) {
+            images.push({ base64: match[2], mimeType: dataMime, source: imgInfo.source });
+          }
         }
         continue;
       }
@@ -131,13 +135,15 @@ export async function extractKeyImages(
           },
         });
         if (resp.ok) {
-          const contentType = resp.headers.get("content-type") || "image/png";
-          if (contentType.startsWith("image/")) {
+          let contentType = (resp.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+          if (contentType === "image/jpg") contentType = "image/jpeg";
+          const supportedTypes = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+          if (supportedTypes.includes(contentType)) {
             const buffer = Buffer.from(await resp.arrayBuffer());
             if (buffer.length > 100 && buffer.length < 5_000_000) {
               images.push({
                 base64: buffer.toString("base64"),
-                mimeType: contentType.split(";")[0],
+                mimeType: contentType,
                 source: imgInfo.source,
               });
             }
