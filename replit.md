@@ -44,7 +44,7 @@ Users configure generation parameters (industry, visual style, aspect ratio, col
 
 ## Scraper Architecture (`server/scraper/`)
 
-- `browser.ts` — Launches headless Chromium, navigates to URL, takes viewport screenshot
+- `browser.ts` — Launches headless Chromium, navigates to URL, takes viewport screenshot. Includes automatic retry with fresh browser instance on navigation failures (frame detachment, timeouts, connection closed) using `domcontentloaded` fallback strategy
 - `dom-colors.ts` — Runs `page.evaluate()` to extract computed styles from high-priority elements (nav, header, hero, logo, CTA, headings), CSS variables, and meta tags (theme-color)
 - `image-colors.ts` — Identifies and fetches key images (OG image, logo, favicon, apple-touch-icon) for Gemini visual analysis
 - `color-scoring.ts` — Scores, merges near-duplicate shades, filters generic defaults, and ranks colors by importance
@@ -57,7 +57,7 @@ Users configure generation parameters (industry, visual style, aspect ratio, col
 
 ## System Dependencies
 
-- Chromium (system Nix package) at `/nix/store/.../bin/chromium`
+- Chromium (discovered dynamically via `which chromium` or `CHROMIUM_PATH` env var)
 - `puppeteer-core` npm package (uses system Chromium, no bundled browser)
 
 ## Models
