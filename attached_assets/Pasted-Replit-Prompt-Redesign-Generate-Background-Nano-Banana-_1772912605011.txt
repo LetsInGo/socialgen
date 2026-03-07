@@ -1,0 +1,54 @@
+Replit Prompt: Redesign "Generate Background" — Nano Banana Studio
+Act as a senior B2B product designer and UX strategist.
+Redesign this single screen: Generate Background (Social Image Background Generator)
+Product: AI-powered social media background image generation tool (SaaS, B2B)
+Users: Event marketers, brand managers, social media coordinators at B2B companies and event organizers
+Screen goal: Input a brand/event URL, configure visual parameters, and generate a production-ready background image — as fast as possible with minimal friction
+Current problems:
+
+The form and preview are given roughly equal visual weight, creating split attention. The preview should dominate.
+The left-to-right layout buries the output (preview) to the right where users naturally start reading left
+Color palette section requires excessive vertical scrolling to reach
+"Analyze" CTA competes with the generate action — unclear primary vs. secondary action hierarchy
+Model selection (Fast vs. Pro) is tucked mid-form with weak upsell framing
+Visual Style selector uses inconsistent button sizing, no visual previews/thumbnails
+Too many open fields visible at once — creates high cognitive load before any output exists
+No progress/loading state shown; no empty state for preview panel
+Aspect ratio dropdown is disconnected from its visual impact
+
+Business goal: Improve activation rate (first successful generation), upsell to Pro model tier, and reduce time-to-first-output for new users
+Constraints:
+
+Keep: URL input + Analyze flow, Model selector (Fast/Pro), Industry dropdown, Visual Style picker, Aspect Ratio, Color Palette with hex customization, Download button
+Brand feel: clean, modern, slightly editorial — dark UI preferred
+Must work desktop-first, responsive to 1280px+ wide
+Accessible: AA contrast, keyboard navigable
+
+Context: This is the core generation screen — users land here after signup/login. After generation they download or iterate. History tab exists for past generations. This is the highest-traffic, highest-intent screen in the product.
+Deliver:
+
+Redesign concept in plain language
+Prioritized layout top-to-bottom
+Information hierarchy and grouping
+Primary action (Generate), secondary actions, and visual emphasis
+Usability, clarity, efficiency, and accessibility improvements
+Form, card, and status messaging improvements
+Microcopy improvements for all labels, buttons, helper text
+Low-fidelity wireframe in structured text
+Short rationale for each major change
+Final section: "What to remove, simplify, or de-emphasize"
+
+Design for: fast scanning, low cognitive load, clear visual hierarchy, strong action prioritization, enterprise trust and clarity, responsive desktop-first B2B SaaS
+Additional design direction:
+
+Use a dark-mode-first canvas with a premium editorial feel — think Figma meets Midjourney
+Preview panel should be the hero: large, left-dominant or center-dominant, not an afterthought
+Collapse advanced settings (color palette, aspect ratio) behind a progressive disclosure pattern — show only URL input + style picker + Generate button above the fold
+The Pro model upsell should be frictionless and contextual — show it after a Fast generation completes, not buried in the form
+Generate button should be the only full-width, high-contrast CTA on screen
+Use skeleton loading states and a subtle shimmer animation during generation
+Show the prompt used to generate the image inline beneath the preview (collapsed by default, expandable)
+
+Build this as a fully functional React + Tailwind component with realistic mock state (loading, generated, empty). Make it feel like a real premium SaaS product, not a form with a sidebar.
+
+That prompt is tight and specific enough that Replit Agent should produce a working, high-fidelity mockup on the first pass. The key additions I made beyond your template: the dark-mode-first direction, progressive disclosure for advanced settings, preview-as-hero, contextual Pro upsell timing, and the instruction to include loading/empty states. Those are the details that will separate a generic output from something actually usable.
