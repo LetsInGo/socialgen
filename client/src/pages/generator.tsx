@@ -13,7 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Wand2, Download, Copy, Loader2, Sparkles, ChevronDown, ChevronUp, Eye, EyeOff, Globe, Check } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import { Wand2, Download, Copy, Loader2, Sparkles, ChevronDown, ChevronUp, Eye, EyeOff, Globe, Check, ArrowUp, ArrowDown, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const INDUSTRIES = [
@@ -77,6 +78,16 @@ const PRESET_PALETTES = [
   { name: "Midnight", primary: "#334155", secondary: "#0F172A", accent: "#94A3B8" },
 ];
 
+function intensityLabel(value: number): string {
+  if (value <= 15) return "Minimal";
+  if (value <= 30) return "Subtle";
+  if (value <= 45) return "Light";
+  if (value <= 55) return "Normal";
+  if (value <= 70) return "Strong";
+  if (value <= 85) return "Bold";
+  return "Maximum";
+}
+
 interface GeneratedResult {
   id: number;
   imageData: string;
@@ -108,6 +119,8 @@ interface ScrapeResult {
   allColors?: ScrapeColorInfo[];
 }
 
+type ColorRole = "primary" | "secondary" | "accent";
+
 export default function GeneratorPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -127,6 +140,12 @@ export default function GeneratorPage() {
       primaryColor: "#0A84FF",
       secondaryColor: "#0B1F3B",
       accentColor: "#64D2FF",
+      primaryWeight: 70,
+      secondaryWeight: 20,
+      accentWeight: 10,
+      industryIntensity: 50,
+      cityIntensity: 50,
+      styleIntensity: 50,
       city: "",
       customPrompt: "",
       model: "gemini-2.5-flash-image",
@@ -156,6 +175,9 @@ export default function GeneratorPage() {
       if (data.city) form.setValue("city", data.city);
       if (data.customPrompt) form.setValue("customPrompt", data.customPrompt);
       if (data.city || data.customPrompt) setShowAdvanced(true);
+      form.setValue("primaryWeight", 70);
+      form.setValue("secondaryWeight", 20);
+      form.setValue("accentWeight", 10);
       toast({
         title: "Website analyzed",
         description: data.eventName
@@ -212,6 +234,20 @@ export default function GeneratorPage() {
     form.setValue("accentColor", palette.accent);
   };
 
+  const swapColors = (index: number, direction: "up" | "down") => {
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= colorFields.length) return;
+
+    const currentRole = colorFields[index].role;
+    const targetRole = colorFields[targetIndex].role;
+
+    const currentColor = form.getValues(`${currentRole}Color` as keyof ImageGenerationConfig) as string;
+    const targetColor = form.getValues(`${targetRole}Color` as keyof ImageGenerationConfig) as string;
+
+    form.setValue(`${currentRole}Color` as any, targetColor);
+    form.setValue(`${targetRole}Color` as any, currentColor);
+  };
+
   const downloadImage = useCallback(() => {
     if (!result) return;
     const link = document.createElement("a");
@@ -228,6 +264,12 @@ export default function GeneratorPage() {
   }, [result, toast]);
 
   const selectedRatio = form.watch("aspectRatio");
+
+  const colorFields: { role: ColorRole; label: string; colorKey: keyof ImageGenerationConfig; weightKey: keyof ImageGenerationConfig; testIdColor: string; testIdInput: string; testIdWeight: string; defaultFallback: string }[] = [
+    { role: "primary", label: "Primary", colorKey: "primaryColor", weightKey: "primaryWeight", testIdColor: "color-primary", testIdInput: "input-primary-color", testIdWeight: "slider-primary-weight", defaultFallback: "#0A84FF" },
+    { role: "secondary", label: "Secondary", colorKey: "secondaryColor", weightKey: "secondaryWeight", testIdColor: "color-secondary", testIdInput: "input-secondary-color", testIdWeight: "slider-secondary-weight", defaultFallback: "#000000" },
+    { role: "accent", label: "Accent", colorKey: "accentColor", weightKey: "accentWeight", testIdColor: "color-accent", testIdInput: "input-accent-color", testIdWeight: "slider-accent-weight", defaultFallback: "#ffffff" },
+  ];
 
   return (
     <div className="min-h-full bg-background">
@@ -505,7 +547,7 @@ export default function GeneratorPage() {
                 <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-semibold">Color Palette</CardTitle>
-                    <CardDescription className="text-xs">Choose preset or customize individual colors</CardDescription>
+                    <CardDescription className="text-xs">Adjust colors, weights, and reorder with arrows</CardDescription>
                   </CardHeader>
                   <CardContent className="pt-0 space-y-4">
                     <div>
@@ -517,7 +559,7 @@ export default function GeneratorPage() {
                             type="button"
                             data-testid={`palette-${p.name.toLowerCase().replace(" ", "-")}`}
                             onClick={() => applyPalette(p)}
-                            className="flex flex-col items-center gap-1.5 p-2 rounded-md border border-border text-xs text-muted-foreground hover-elevate transition-colors"
+                            className="flex flex-col items-center gap-1.5 p-2 rounded-md border border-border text-xs text-muted-foreground hover:border-primary/40 transition-colors"
                           >
                             <div className="flex gap-0.5">
                               <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.primary }} />
@@ -532,88 +574,158 @@ export default function GeneratorPage() {
 
                     <Separator />
 
-                    <div className="space-y-3">
-                      <FormField
-                        control={form.control}
-                        name="primaryColor"
-                        render={({ field }) => (
-                          <FormItem>
-                            <div className="flex items-center justify-between gap-3">
-                              <FormLabel className="text-xs font-medium whitespace-nowrap">Primary (~70%)</FormLabel>
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="color"
-                                  value={field.value}
-                                  onChange={(e) => field.onChange(e.target.value)}
-                                  className="w-8 h-7 rounded cursor-pointer border border-border"
-                                  data-testid="color-primary"
-                                />
-                                <Input
-                                  {...field}
-                                  className="w-24 h-7 text-xs font-mono uppercase"
-                                  data-testid="input-primary-color"
-                                />
-                              </div>
+                    <div className="space-y-4">
+                      {colorFields.map((cf, index) => (
+                        <div key={cf.role} className="space-y-2" data-testid={`color-row-${cf.role}`}>
+                          <div className="flex items-center gap-2">
+                            <div className="flex flex-col gap-0.5">
+                              <button
+                                type="button"
+                                disabled={index === 0}
+                                onClick={() => swapColors(index, "up")}
+                                className="p-0.5 rounded hover:bg-muted disabled:opacity-20 transition-colors"
+                                data-testid={`button-color-up-${cf.role}`}
+                              >
+                                <ArrowUp className="h-3 w-3" />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={index === colorFields.length - 1}
+                                onClick={() => swapColors(index, "down")}
+                                className="p-0.5 rounded hover:bg-muted disabled:opacity-20 transition-colors"
+                                data-testid={`button-color-down-${cf.role}`}
+                              >
+                                <ArrowDown className="h-3 w-3" />
+                              </button>
                             </div>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
 
-                      <FormField
-                        control={form.control}
-                        name="secondaryColor"
-                        render={({ field }) => (
-                          <FormItem>
-                            <div className="flex items-center justify-between gap-3">
-                              <FormLabel className="text-xs font-medium whitespace-nowrap">Secondary (~20%)</FormLabel>
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="color"
-                                  value={field.value || "#000000"}
-                                  onChange={(e) => field.onChange(e.target.value)}
-                                  className="w-8 h-7 rounded cursor-pointer border border-border"
-                                  data-testid="color-secondary"
-                                />
-                                <Input
-                                  {...field}
-                                  className="w-24 h-7 text-xs font-mono uppercase"
-                                  placeholder="#000000"
-                                  data-testid="input-secondary-color"
-                                />
-                              </div>
-                            </div>
-                          </FormItem>
-                        )}
-                      />
+                            <FormField
+                              control={form.control}
+                              name={cf.colorKey as any}
+                              render={({ field }) => (
+                                <FormItem className="flex-1">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2">
+                                      <input
+                                        type="color"
+                                        value={field.value as string || cf.defaultFallback}
+                                        onChange={(e) => field.onChange(e.target.value)}
+                                        className="w-7 h-7 rounded cursor-pointer border border-border"
+                                        data-testid={cf.testIdColor}
+                                      />
+                                      <FormLabel className="text-xs font-medium whitespace-nowrap mb-0">{cf.label}</FormLabel>
+                                    </div>
+                                    <Input
+                                      value={field.value as string}
+                                      onChange={(e) => field.onChange(e.target.value)}
+                                      className="w-24 h-7 text-xs font-mono uppercase"
+                                      placeholder={cf.defaultFallback}
+                                      data-testid={cf.testIdInput}
+                                    />
+                                  </div>
+                                </FormItem>
+                              )}
+                            />
+                          </div>
 
-                      <FormField
-                        control={form.control}
-                        name="accentColor"
-                        render={({ field }) => (
-                          <FormItem>
-                            <div className="flex items-center justify-between gap-3">
-                              <FormLabel className="text-xs font-medium whitespace-nowrap">Accent (~10%)</FormLabel>
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="color"
-                                  value={field.value || "#ffffff"}
-                                  onChange={(e) => field.onChange(e.target.value)}
-                                  className="w-8 h-7 rounded cursor-pointer border border-border"
-                                  data-testid="color-accent"
-                                />
-                                <Input
-                                  {...field}
-                                  className="w-24 h-7 text-xs font-mono uppercase"
-                                  placeholder="#ffffff"
-                                  data-testid="input-accent-color"
-                                />
-                              </div>
-                            </div>
-                          </FormItem>
-                        )}
-                      />
+                          <FormField
+                            control={form.control}
+                            name={cf.weightKey as any}
+                            render={({ field }) => (
+                              <FormItem className="pl-8">
+                                <div className="flex items-center gap-3">
+                                  <Slider
+                                    min={0}
+                                    max={100}
+                                    step={5}
+                                    value={[field.value as number]}
+                                    onValueChange={([v]) => field.onChange(v)}
+                                    className="flex-1"
+                                    data-testid={cf.testIdWeight}
+                                  />
+                                  <span className="text-[11px] font-mono text-muted-foreground w-10 text-right">{field.value as number}%</span>
+                                </div>
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      ))}
                     </div>
+                  </CardContent>
+                </Card>
+
+                {/* Prompt Influence */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                      <SlidersHorizontal className="h-4 w-4 text-primary" />
+                      Prompt Influence
+                    </CardTitle>
+                    <CardDescription className="text-xs">Control how strongly each element appears in the image</CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-0 space-y-4">
+                    <FormField
+                      control={form.control}
+                      name="industryIntensity"
+                      render={({ field }) => (
+                        <FormItem>
+                          <div className="flex items-center justify-between mb-1">
+                            <FormLabel className="text-xs font-medium">Industry Motifs</FormLabel>
+                            <span className="text-[11px] text-muted-foreground">{intensityLabel(field.value as number)} ({field.value}%)</span>
+                          </div>
+                          <Slider
+                            min={0}
+                            max={100}
+                            step={5}
+                            value={[field.value as number]}
+                            onValueChange={([v]) => field.onChange(v)}
+                            data-testid="slider-industry-intensity"
+                          />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="styleIntensity"
+                      render={({ field }) => (
+                        <FormItem>
+                          <div className="flex items-center justify-between mb-1">
+                            <FormLabel className="text-xs font-medium">Visual Style</FormLabel>
+                            <span className="text-[11px] text-muted-foreground">{intensityLabel(field.value as number)} ({field.value}%)</span>
+                          </div>
+                          <Slider
+                            min={0}
+                            max={100}
+                            step={5}
+                            value={[field.value as number]}
+                            onValueChange={([v]) => field.onChange(v)}
+                            data-testid="slider-style-intensity"
+                          />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="cityIntensity"
+                      render={({ field }) => (
+                        <FormItem>
+                          <div className="flex items-center justify-between mb-1">
+                            <FormLabel className="text-xs font-medium">City / Location</FormLabel>
+                            <span className="text-[11px] text-muted-foreground">{intensityLabel(field.value as number)} ({field.value}%)</span>
+                          </div>
+                          <Slider
+                            min={0}
+                            max={100}
+                            step={5}
+                            value={[field.value as number]}
+                            onValueChange={([v]) => field.onChange(v)}
+                            data-testid="slider-city-intensity"
+                          />
+                        </FormItem>
+                      )}
+                    />
                   </CardContent>
                 </Card>
 
@@ -745,7 +857,7 @@ export default function GeneratorPage() {
                       </div>
                       <div className="text-center">
                         <p className="text-sm font-medium">Generating your image...</p>
-                        <p className="text-xs text-muted-foreground mt-1">This may take 15–30 seconds</p>
+                        <p className="text-xs text-muted-foreground mt-1">This may take 15-30 seconds</p>
                       </div>
                     </div>
                   ) : result ? (
@@ -798,6 +910,8 @@ export default function GeneratorPage() {
                     "Gradient style works best for clean text backgrounds",
                     "Add a city for unique localized imagery with cultural cues",
                     "Nano Banana Pro is best for precision layouts with text inside",
+                    "Adjust intensity sliders to control how much each element shows",
+                    "Reorder colors with arrows — the top color gets highest weight",
                   ].map((tip, i) => (
                     <div key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
                       <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 flex-shrink-0" />

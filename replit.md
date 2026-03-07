@@ -21,11 +21,12 @@ Users configure generation parameters (industry, visual style, aspect ratio, col
 - **Color scoring engine**: Weights colors by element importance (logo 5x, hero/CTA 4x, nav/header 3x, headings 2x, body 1x), merges near-duplicates, filters common defaults, and highlights CSS variables with brand-related names
 - **Smart prompt builder**: Automatically constructs detailed, structured prompts from user inputs
 - **Industry motifs**: 15 industries with curated visual vocabulary
-- **Color palette**: 6 preset palettes + custom RGB/hex color pickers
+- **Color palette**: 6 preset palettes + custom RGB/hex color pickers + per-color weight sliders (0-100%) + arrow buttons to reorder colors (moving a color up gives it a higher weight position)
+- **Prompt influence sliders**: Industry motifs, visual style, and city/location intensity (0-100, mapped to language levels from "barely perceptible" to "overwhelming/maximalist")
 - **Aspect ratios**: 7 standard social ratios (1:1, 16:9, 9:16, 4:5, 3:2, 2:3, 21:9)
 - **Visual styles**: 6 styles (photorealistic, illustration, abstract, minimalist, gradient, editorial)
 - **Model selection**: Nano Banana (fast) vs Nano Banana Pro (high fidelity)
-- **City/location**: Optional city backdrop with cultural cues
+- **City/location**: Optional city backdrop with cultural cues and intensity control
 - **Generation history**: Browse, preview, download, and delete past generations
 - **Dark/light mode**: Full theme toggle with persistence
 

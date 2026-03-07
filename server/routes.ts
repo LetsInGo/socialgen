@@ -57,30 +57,68 @@ const ASPECT_RATIO_LABELS: Record<string, string> = {
   "21:9": "21:9 aspect ratio, ultra-wide cinematic format, website hero banner",
 };
 
+function intensityPrefix(intensity: number): { adjective: string; verb: string } {
+  if (intensity <= 15) return { adjective: "extremely subtle, barely perceptible", verb: "add the faintest trace of" };
+  if (intensity <= 30) return { adjective: "very subtle, understated", verb: "lightly hint at" };
+  if (intensity <= 45) return { adjective: "subtle", verb: "subtly incorporate" };
+  if (intensity <= 55) return { adjective: "", verb: "incorporate" };
+  if (intensity <= 70) return { adjective: "prominent, clearly visible", verb: "prominently feature" };
+  if (intensity <= 85) return { adjective: "bold, dominant", verb: "heavily emphasize" };
+  return { adjective: "overwhelming, maximalist", verb: "make the dominant visual element with" };
+}
+
 function buildPrompt(config: z.infer<typeof imageGenerationConfigSchema>): string {
   const motifs = INDUSTRY_MOTIFS[config.industry] || "abstract professional background, clean modern aesthetic";
   const styleDesc = STYLE_DESCRIPTORS[config.style] || "professional quality";
   const ratioLabel = ASPECT_RATIO_LABELS[config.aspectRatio] || config.aspectRatio;
 
+  const pw = config.primaryWeight ?? 70;
+  const sw = config.secondaryWeight ?? 20;
+  const aw = config.accentWeight ?? 10;
+
   const colorSection = [
-    `primary color ~70% dominance: ${config.primaryColor}`,
-    config.secondaryColor ? `secondary color ~20%: ${config.secondaryColor}` : null,
-    config.accentColor ? `accent color ~10%: ${config.accentColor}` : null,
+    `primary color ~${pw}% dominance: ${config.primaryColor}`,
+    config.secondaryColor ? `secondary color ~${sw}%: ${config.secondaryColor}` : null,
+    config.accentColor ? `accent color ~${aw}%: ${config.accentColor}` : null,
   ]
     .filter(Boolean)
     .join(", ");
 
-  const citySection = config.city
-    ? `Set against ${config.city} - use one unmistakable landmark or skyline silhouette, atmospheric lighting and cultural architecture cues, no readable text or signs.`
-    : "";
+  const indIntensity = config.industryIntensity ?? 50;
+  const indPrefix = intensityPrefix(indIntensity);
+  const industrySection = indPrefix.adjective
+    ? `Industry theme: ${config.industry} — ${indPrefix.verb} ${indPrefix.adjective} motifs of ${motifs}.`
+    : `Industry theme: ${config.industry} — ${indPrefix.verb} motifs of ${motifs}.`;
+
+  const styleInt = config.styleIntensity ?? 50;
+  const stylePrefix = intensityPrefix(styleInt);
+  const styledDesc = stylePrefix.adjective
+    ? `${styleDesc}, ${stylePrefix.adjective} stylization`
+    : styleDesc;
+
+  const cityInt = config.cityIntensity ?? 50;
+  let citySection = "";
+  if (config.city) {
+    if (cityInt <= 25) {
+      citySection = `Set against ${config.city} — use a distant, barely visible skyline silhouette on the horizon, atmospheric haze, no readable text or signs.`;
+    } else if (cityInt <= 45) {
+      citySection = `Set against ${config.city} — use a subtle skyline silhouette or architectural hint, atmospheric lighting, no readable text or signs.`;
+    } else if (cityInt <= 55) {
+      citySection = `Set against ${config.city} — use one unmistakable landmark or skyline silhouette, atmospheric lighting and cultural architecture cues, no readable text or signs.`;
+    } else if (cityInt <= 75) {
+      citySection = `Set prominently against ${config.city} — feature recognizable landmarks and urban skyline as a clear visual element, strong cultural architecture presence, no readable text or signs.`;
+    } else {
+      citySection = `${config.city} as the dominant backdrop — make the city's iconic landmarks and skyline the primary visual focus, dramatic urban atmosphere, no readable text or signs.`;
+    }
+  }
 
   const customSection = config.customPrompt
     ? `Additional details: ${config.customPrompt}.`
     : "";
 
-  return `Create a production-ready social media background image. ${styleDesc}.
+  return `Create a production-ready social media background image. ${styledDesc}.
 
-Industry theme: ${config.industry} — incorporate subtle motifs of ${motifs}.
+${industrySection}
 
 Color palette: ${colorSection}. The background field should reflect these colors with large gradient canvas areas.
 
