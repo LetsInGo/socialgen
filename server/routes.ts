@@ -351,6 +351,11 @@ Rules:
 
         const screenshotBase64 = browserResult.screenshot.toString("base64");
 
+        const logoImage = keyImages.find((img) => img.source === "logo" || img.source === "apple-touch-icon" || img.source === "favicon");
+        const logoData = logoImage
+          ? { base64: logoImage.base64, mimeType: logoImage.mimeType }
+          : null;
+
         const result = {
           eventName: typeof parsed.eventName === "string" ? parsed.eventName : "Unknown Event",
           industry: INDUSTRIES_LIST.includes(parsed.industry) ? parsed.industry : "Technology / SaaS",
@@ -367,6 +372,7 @@ Rules:
           customPrompt: typeof parsed.customPrompt === "string" ? parsed.customPrompt : "",
           summary: typeof parsed.summary === "string" ? parsed.summary : "",
           screenshot: screenshotBase64,
+          logo: logoData,
           allColors: scoredColors.slice(0, 10).map((c) => ({
             hex: c.hex,
             score: Math.round(c.score * 10) / 10,

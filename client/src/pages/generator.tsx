@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -17,6 +17,7 @@ import {
   Wand2, Download, Copy, Loader2, Sparkles, ChevronDown, ChevronUp,
   Globe, Check, ArrowUp, ArrowDown, SlidersHorizontal, AlertCircle,
   Palette, Settings2, MapPin, FileText, RefreshCw, Zap, Image as ImageIcon,
+  GripVertical, X, Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -111,6 +112,7 @@ interface ScrapeResult {
   customPrompt: string;
   summary: string;
   screenshot?: string;
+  logo?: { base64: string; mimeType: string } | null;
   allColors?: ScrapeColorInfo[];
 }
 
@@ -161,6 +163,37 @@ export default function GeneratorPage() {
   const [showColorDetails, setShowColorDetails] = useState(false);
   const [showPresets, setShowPresets] = useState(true);
   const [generatedWithModel, setGeneratedWithModel] = useState<string | null>(null);
+  const [showUrlInput, setShowUrlInput] = useState(true);
+  const [logoSrc, setLogoSrc] = useState<string | null>(null);
+  const [showLogo, setShowLogo] = useState(true);
+  const [logoPos, setLogoPos] = useState({ x: 16, y: 16 });
+  const previewRef = useRef<HTMLDivElement>(null);
+  const dragging = useRef(false);
+  const dragOffset = useRef({ x: 0, y: 0 });
+
+  const handleLogoDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    dragging.current = true;
+    const rect = (e.target as HTMLElement).getBoundingClientRect();
+    dragOffset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    const onMove = (me: MouseEvent) => {
+      if (!dragging.current || !previewRef.current) return;
+      const containerRect = previewRef.current.getBoundingClientRect();
+      const newX = me.clientX - containerRect.left - dragOffset.current.x;
+      const newY = me.clientY - containerRect.top - dragOffset.current.y;
+      setLogoPos({
+        x: Math.max(0, Math.min(newX, containerRect.width - 48)),
+        y: Math.max(0, Math.min(newY, containerRect.height - 48)),
+      });
+    };
+    const onUp = () => {
+      dragging.current = false;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, []);
 
   const form = useForm<ImageGenerationConfig>({
     resolver: zodResolver(imageGenerationConfigSchema),
@@ -201,6 +234,14 @@ export default function GeneratorPage() {
     onSuccess: (data) => {
       setScrapeResult(data);
       setScrapeError(null);
+      setShowUrlInput(false);
+      if (data.logo) {
+        setLogoSrc(`data:${data.logo.mimeType};base64,${data.logo.base64}`);
+        setShowLogo(true);
+        setLogoPos({ x: 16, y: 16 });
+      } else {
+        setLogoSrc(null);
+      }
       if (data.industry) form.setValue("industry", data.industry);
       if (data.style) form.setValue("style", data.style);
       if (data.primaryColor) form.setValue("primaryColor", data.primaryColor);
@@ -286,12 +327,46 @@ export default function GeneratorPage() {
 
   const downloadImage = useCallback(() => {
     if (!result) return;
-    const link = document.createElement("a");
-    link.href = `data:${result.mimeType};base64,${result.imageData}`;
-    const ratio = form.getValues("aspectRatio").replace(":", "x");
-    link.download = `nanabana-${ratio}-${result.id}.png`;
-    link.click();
-  }, [result, form]);
+    if (!showLogo || !logoSrc || !previewRef.current) {
+      const link = document.createElement("a");
+      link.href = `data:${result.mimeType};base64,${result.imageData}`;
+      const ratio = form.getValues("aspectRatio").replace(":", "x");
+      link.download = `nanabana-${ratio}-${result.id}.png`;
+      link.click();
+      return;
+    }
+    const bgImg = new window.Image();
+    bgImg.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = bgImg.width;
+      canvas.height = bgImg.height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(bgImg, 0, 0);
+      const logoImg = new window.Image();
+      logoImg.onload = () => {
+        const container = previewRef.current!;
+        const scaleX = bgImg.width / container.clientWidth;
+        const scaleY = bgImg.height / container.clientHeight;
+        const logoSize = 48;
+        const drawX = logoPos.x * scaleX;
+        const drawY = logoPos.y * scaleY;
+        const drawW = logoSize * scaleX;
+        const drawH = logoSize * scaleY;
+        ctx.drawImage(logoImg, drawX, drawY, drawW, drawH);
+        canvas.toBlob((blob) => {
+          if (!blob) return;
+          const link = document.createElement("a");
+          link.href = URL.createObjectURL(blob);
+          const ratio = form.getValues("aspectRatio").replace(":", "x");
+          link.download = `nanabana-${ratio}-${result.id}.png`;
+          link.click();
+          URL.revokeObjectURL(link.href);
+        }, "image/png");
+      };
+      logoImg.src = logoSrc;
+    };
+    bgImg.src = `data:${result.mimeType};base64,${result.imageData}`;
+  }, [result, form, showLogo, logoSrc, logoPos]);
 
   const copyPrompt = useCallback(() => {
     if (!result?.prompt) return;
@@ -336,6 +411,7 @@ export default function GeneratorPage() {
 
             {/* Preview Area */}
             <div
+              ref={previewRef}
               className={cn(
                 "w-full rounded-lg border border-border overflow-hidden bg-muted/20 relative",
                 ASPECT_RATIO_CSS[selectedRatio] || "aspect-video",
@@ -378,12 +454,32 @@ export default function GeneratorPage() {
                   </div>
                 </div>
               ) : result ? (
-                <img
-                  src={`data:${result.mimeType};base64,${result.imageData}`}
-                  alt="Generated social background"
-                  className="w-full h-full object-cover"
-                  data-testid="img-generated"
-                />
+                <>
+                  <img
+                    src={`data:${result.mimeType};base64,${result.imageData}`}
+                    alt="Generated social background"
+                    className="w-full h-full object-cover"
+                    data-testid="img-generated"
+                  />
+                  {logoSrc && showLogo && (
+                    <div
+                      className="absolute cursor-grab active:cursor-grabbing group"
+                      style={{ left: logoPos.x, top: logoPos.y }}
+                      onMouseDown={handleLogoDragStart}
+                      data-testid="logo-overlay"
+                    >
+                      <img src={logoSrc} alt="Event logo" className="w-12 h-12 object-contain rounded shadow-lg pointer-events-none" draggable={false} />
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setShowLogo(false); }}
+                        className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-background/80 border border-border flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        data-testid="button-remove-logo"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  )}
+                </>
               ) : (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-muted-foreground">
                   <div className="w-14 h-14 rounded-full bg-muted/50 flex items-center justify-center">
@@ -396,6 +492,19 @@ export default function GeneratorPage() {
                 </div>
               )}
             </div>
+
+            {/* Logo Toggle (show/hide when logo available but hidden) */}
+            {logoSrc && !showLogo && result && (
+              <button
+                type="button"
+                onClick={() => setShowLogo(true)}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
+                data-testid="button-show-logo"
+              >
+                <ImageIcon className="h-3.5 w-3.5" />
+                Show logo overlay
+              </button>
+            )}
 
             {/* Pro Upsell Banner */}
             {result && generatedWithModel === "gemini-2.5-flash-image" && (
@@ -455,37 +564,54 @@ export default function GeneratorPage() {
 
                 {/* URL Input — Quick Setup */}
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Globe className="h-3.5 w-3.5 text-primary flex-shrink-0" />
-                    <p className="text-xs font-semibold">Brand or Event URL</p>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground -mt-1">Paste any URL to extract colors, industry, and location</p>
-                  <div className="flex gap-2">
-                    <Input
-                      value={eventUrl}
-                      onChange={(e) => { setEventUrl(e.target.value); setScrapeError(null); }}
-                      placeholder="https://example.com"
-                      className="text-sm flex-1 h-9"
-                      data-testid="input-event-url"
-                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleScrape(); } }}
-                    />
-                    <Button
+                  {showUrlInput ? (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <Globe className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+                        <p className="text-xs font-semibold">Brand or Event URL</p>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground -mt-1">Paste any URL to extract colors, industry, and location</p>
+                      <div className="flex gap-2">
+                        <Input
+                          value={eventUrl}
+                          onChange={(e) => { setEventUrl(e.target.value); setScrapeError(null); }}
+                          placeholder="https://example.com"
+                          className="text-sm flex-1 h-9"
+                          data-testid="input-event-url"
+                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleScrape(); } }}
+                        />
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={handleScrape}
+                          disabled={scrapeMutation.isPending}
+                          className="h-9 px-3"
+                          data-testid="button-scrape"
+                        >
+                          {scrapeMutation.isPending ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Globe className="h-3.5 w-3.5" />
+                          )}
+                          {scrapeMutation.isPending ? "Extracting..." : "Extract"}
+                        </Button>
+                      </div>
+                    </>
+                  ) : scrapeResult && (
+                    <button
                       type="button"
-                      variant="secondary"
-                      size="sm"
-                      onClick={handleScrape}
-                      disabled={scrapeMutation.isPending}
-                      className="h-9 px-3"
-                      data-testid="button-scrape"
+                      onClick={() => setShowUrlInput(true)}
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-md border border-border text-left hover:bg-muted/50 transition-colors"
+                      data-testid="button-reopen-url"
                     >
-                      {scrapeMutation.isPending ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Globe className="h-3.5 w-3.5" />
-                      )}
-                      {scrapeMutation.isPending ? "Extracting..." : "Extract"}
-                    </Button>
-                  </div>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Globe className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+                        <span className="text-xs font-medium truncate">{scrapeResult.eventName}</span>
+                      </div>
+                      <Pencil className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                    </button>
+                  )}
 
                   {/* Scrape Error — Inline */}
                   {scrapeError && (
@@ -573,79 +699,56 @@ export default function GeneratorPage() {
 
                 <Separator />
 
-                {/* Visual Style — Above the fold */}
-                <FormField
-                  control={form.control}
-                  name="style"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-xs font-semibold">Visual Style</FormLabel>
-                      <div className="grid grid-cols-3 gap-1.5">
-                        {STYLES.map((s) => (
-                          <button
-                            key={s.value}
-                            type="button"
-                            data-testid={`style-${s.value}`}
-                            onClick={() => field.onChange(s.value)}
-                            className={cn(
-                              "px-2 py-2 rounded-md border text-xs font-medium transition-colors text-center",
-                              field.value === s.value
-                                ? "border-primary bg-primary/10 text-foreground"
-                                : "border-border text-muted-foreground hover:border-muted-foreground/30"
-                            )}
-                          >
-                            {s.label}
-                          </button>
-                        ))}
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {/* Visual Style & Aspect Ratio — Compact Dropdowns */}
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField
+                    control={form.control}
+                    name="style"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs font-semibold">Style</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-style" className="h-9">
+                              <SelectValue placeholder="Select style" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {STYLES.map((s) => (
+                              <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                {/* Aspect Ratio — Visual Thumbnails */}
-                <FormField
-                  control={form.control}
-                  name="aspectRatio"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-xs font-semibold">Aspect Ratio</FormLabel>
-                      <div className="grid grid-cols-4 gap-1.5">
-                        {ASPECT_RATIOS.map((r) => (
-                          <button
-                            key={r.value}
-                            type="button"
-                            data-testid={`ratio-${r.value.replace(":", "-")}`}
-                            onClick={() => field.onChange(r.value)}
-                            className={cn(
-                              "flex flex-col items-center gap-1 p-1.5 rounded-md border transition-colors",
-                              field.value === r.value
-                                ? "border-primary bg-primary/10"
-                                : "border-border hover:border-muted-foreground/30"
-                            )}
-                          >
-                            <div className="flex items-center justify-center h-7">
-                              <div
-                                className={cn(
-                                  "border-2 rounded-sm",
-                                  field.value === r.value ? "border-primary" : "border-muted-foreground/40"
-                                )}
-                                style={{ width: `${r.w * 0.6}px`, height: `${r.h * 0.6}px` }}
-                              />
-                            </div>
-                            <span className={cn(
-                              "text-[10px] font-medium leading-none",
-                              field.value === r.value ? "text-foreground" : "text-muted-foreground"
-                            )}>
-                              {r.label}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                  <FormField
+                    control={form.control}
+                    name="aspectRatio"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs font-semibold">Aspect Ratio</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-aspect-ratio" className="h-9">
+                              <SelectValue placeholder="Select ratio" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {ASPECT_RATIOS.map((r) => (
+                              <SelectItem key={r.value} value={r.value}>
+                                {r.label} — {r.desc}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
                 {/* GENERATE BUTTON — Primary CTA */}
                 <Button
@@ -783,27 +886,38 @@ export default function GeneratorPage() {
                 <CollapsibleSection title="Fine-Tune" icon={SlidersHorizontal} testId="section-fine-tune">
                   <div className="space-y-3">
                     {([
-                      { name: "industryIntensity" as const, label: "Industry Motifs", testId: "slider-industry-intensity" },
-                      { name: "styleIntensity" as const, label: "Visual Style", testId: "slider-style-intensity" },
-                      { name: "themeIntensity" as const, label: "Event Theme", testId: "slider-theme-intensity" },
-                      { name: "cityIntensity" as const, label: "City / Location", testId: "slider-city-intensity" },
-                      { name: "venueIntensity" as const, label: "Venue", testId: "slider-venue-intensity" },
-                    ]).map((item) => (
-                      <FormField
-                        key={item.name}
-                        control={form.control}
-                        name={item.name}
-                        render={({ field }) => (
-                          <FormItem>
-                            <div className="flex items-center justify-between mb-0.5">
-                              <FormLabel className="text-[11px] font-medium">{item.label}</FormLabel>
-                              <span className="text-[10px] text-muted-foreground">{intensityLabel(field.value as number)} ({field.value}%)</span>
-                            </div>
-                            <Slider min={0} max={100} step={5} value={[field.value as number]} onValueChange={([v]) => field.onChange(v)} data-testid={item.testId} />
-                          </FormItem>
-                        )}
-                      />
-                    ))}
+                      { name: "industryIntensity" as const, label: "Industry Motifs", valueKey: "industry" as const, testId: "slider-industry-intensity" },
+                      { name: "styleIntensity" as const, label: "Visual Style", valueKey: "style" as const, testId: "slider-style-intensity" },
+                      { name: "themeIntensity" as const, label: "Event Theme", valueKey: "theme" as const, testId: "slider-theme-intensity" },
+                      { name: "cityIntensity" as const, label: "City / Location", valueKey: "city" as const, testId: "slider-city-intensity" },
+                      { name: "venueIntensity" as const, label: "Venue", valueKey: "venue" as const, testId: "slider-venue-intensity" },
+                    ]).map((item) => {
+                      const currentValue = form.watch(item.valueKey);
+                      const displayValue = typeof currentValue === "string" && currentValue ? currentValue : null;
+                      return (
+                        <FormField
+                          key={item.name}
+                          control={form.control}
+                          name={item.name}
+                          render={({ field }) => (
+                            <FormItem>
+                              <div className="flex items-center justify-between mb-0.5">
+                                <FormLabel className="text-[11px] font-medium">
+                                  {item.label}
+                                  {displayValue && (
+                                    <span className="text-[10px] text-primary/70 font-normal ml-1.5" data-testid={`label-${item.valueKey}-value`}>
+                                      {displayValue}
+                                    </span>
+                                  )}
+                                </FormLabel>
+                                <span className="text-[10px] text-muted-foreground">{intensityLabel(field.value as number)} ({field.value}%)</span>
+                              </div>
+                              <Slider min={0} max={100} step={5} value={[field.value as number]} onValueChange={([v]) => field.onChange(v)} data-testid={item.testId} />
+                            </FormItem>
+                          )}
+                        />
+                      );
+                    })}
                   </div>
                 </CollapsibleSection>
 

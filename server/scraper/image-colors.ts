@@ -103,7 +103,15 @@ export async function extractKeyImages(
     priority: number;
   }>;
 
-  for (const imgInfo of imageUrls.slice(0, 2)) {
+  const logoSources = new Set(["logo", "apple-touch-icon", "favicon"]);
+  const hasLogo = imageUrls.some((u) => logoSources.has(u.source));
+  const nonLogos = imageUrls.filter((u) => !logoSources.has(u.source));
+  const logos = imageUrls.filter((u) => logoSources.has(u.source));
+  const toFetch = hasLogo
+    ? [...nonLogos.slice(0, 1), ...logos.slice(0, 1)]
+    : imageUrls.slice(0, 2);
+
+  for (const imgInfo of toFetch) {
     try {
       let fullUrl = imgInfo.url;
       if (fullUrl.startsWith("//")) fullUrl = "https:" + fullUrl;

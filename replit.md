@@ -29,8 +29,9 @@ Users configure generation parameters (industry, visual style, aspect ratio, col
 - **Industry motifs**: 15 industries with curated visual vocabulary
 - **Color palette**: 6 preset palettes + custom RGB/hex color pickers + per-color weight sliders (0-100%) + arrow buttons to reorder colors (moving a color up gives it a higher weight position)
 - **Prompt influence sliders**: Industry motifs, visual style, and city/location intensity (0-100, mapped to language levels from "barely perceptible" to "overwhelming/maximalist")
-- **Aspect ratios**: 7 standard social ratios rendered as visual thumbnails (shape previews, not a dropdown)
-- **Visual styles**: 6 styles (photorealistic, illustration, abstract, minimalist, gradient, editorial)
+- **Aspect ratios**: 7 standard social ratios in a compact dropdown (with platform labels like "YouTube / LinkedIn", "Story / Reel")
+- **Visual styles**: 6 styles in a compact dropdown (photorealistic, illustration, abstract, minimalist, gradient, editorial)
+- **Logo overlay**: Draggable event logo extracted from scraping, positioned top-left by default; composited into download; can be hidden/shown
 - **Model selection**: Nano Banana (fast) vs Nano Banana Pro (high fidelity) — in Advanced section, with contextual upsell post-generation
 - **Event theme**: Extracted from scraping (e.g. "AI & Machine Learning", "Sustainable Finance") — adds conceptual visual imagery with intensity control
 - **Venue**: Extracted from scraping (e.g. "Moscone Center") — adds venue architecture with intensity control
