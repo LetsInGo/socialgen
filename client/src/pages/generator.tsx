@@ -130,6 +130,7 @@ export default function GeneratorPage() {
   const [eventUrl, setEventUrl] = useState("");
   const [scrapeResult, setScrapeResult] = useState<ScrapeResult | null>(null);
   const [showColorDetails, setShowColorDetails] = useState(false);
+  const [showPresets, setShowPresets] = useState(true);
 
   const form = useForm<ImageGenerationConfig>({
     resolver: zodResolver(imageGenerationConfigSchema),
@@ -175,6 +176,7 @@ export default function GeneratorPage() {
       if (data.city) form.setValue("city", data.city);
       if (data.customPrompt) form.setValue("customPrompt", data.customPrompt);
       if (data.city || data.customPrompt) setShowAdvanced(true);
+      setShowPresets(false);
       form.setValue("primaryWeight", 70);
       form.setValue("secondaryWeight", 20);
       form.setValue("accentWeight", 10);
@@ -551,25 +553,35 @@ export default function GeneratorPage() {
                   </CardHeader>
                   <CardContent className="pt-0 space-y-4">
                     <div>
-                      <p className="text-xs font-medium mb-2 text-muted-foreground">Presets</p>
-                      <div className="grid grid-cols-3 gap-1.5">
-                        {PRESET_PALETTES.map((p) => (
-                          <button
-                            key={p.name}
-                            type="button"
-                            data-testid={`palette-${p.name.toLowerCase().replace(" ", "-")}`}
-                            onClick={() => applyPalette(p)}
-                            className="flex flex-col items-center gap-1.5 p-2 rounded-md border border-border text-xs text-muted-foreground hover:border-primary/40 transition-colors"
-                          >
-                            <div className="flex gap-0.5">
-                              <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.primary }} />
-                              <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.secondary }} />
-                              <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.accent }} />
-                            </div>
-                            <span className="truncate w-full text-center">{p.name}</span>
-                          </button>
-                        ))}
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowPresets(!showPresets)}
+                        className="flex items-center justify-between w-full text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                        data-testid="button-toggle-presets"
+                      >
+                        <span>Presets</span>
+                        {showPresets ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                      </button>
+                      {showPresets && (
+                        <div className="grid grid-cols-3 gap-1.5 mt-2">
+                          {PRESET_PALETTES.map((p) => (
+                            <button
+                              key={p.name}
+                              type="button"
+                              data-testid={`palette-${p.name.toLowerCase().replace(" ", "-")}`}
+                              onClick={() => applyPalette(p)}
+                              className="flex flex-col items-center gap-1.5 p-2 rounded-md border border-border text-xs text-muted-foreground hover:border-primary/40 transition-colors"
+                            >
+                              <div className="flex gap-0.5">
+                                <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.primary }} />
+                                <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.secondary }} />
+                                <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.accent }} />
+                              </div>
+                              <span className="truncate w-full text-center">{p.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     <Separator />
