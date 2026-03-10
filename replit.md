@@ -17,7 +17,10 @@ Users configure generation parameters (industry, visual style, aspect ratio, col
 ## Key Features
 
 - **Preview-dominant layout**: Large preview hero panel (left, ~65%) with compact config panel (right, ~35%). Preview is the focal point, not the form.
-- **Progressive disclosure**: Config sections (Industry, Colors, Fine-Tune, Advanced) collapse behind toggles. Only URL input, style picker, and Generate button visible above the fold.
+- **Progressive disclosure**: Config sections (Industry, Colors, Focus Priority, Advanced) collapse behind toggles. Only URL input, style picker, and Generate button visible above the fold.
+- **Focus Priority system**: Three tiers (Primary/Supporting/Subtle) where users assign dimensions (industry, style, theme, city, venue) as clickable chips that cycle between tiers. Primary defines the scene (~60%), Supporting adds atmosphere (~25%), Subtle adds texture (~15%). Replaces the old 5 intensity sliders.
+- **Color Prominence slider**: Single 0-100 slider controlling how much brand colors dominate the image. Replaces the old per-color weight sliders. Labels: Subtle tint → Soft presence → Balanced → Bold → Color dominant.
+- **Cohesive scene prompts**: buildPrompt() generates a single flowing paragraph describing a unified scene structured around focus priority tiers, not a bulleted list. Backend normalizes focus tiers to prevent duplicates/invalid values.
 - **Skeleton shimmer loading**: Premium shimmer animation in preview area during generation. Error states shown inline in preview with retry buttons.
 - **Contextual Pro upsell**: After generating with Fast model, a subtle banner suggests trying Pro — not buried in the form.
 - **Inline error states**: URL analysis failures and generation errors shown in context with actionable "Try again" buttons, not just toast notifications.
@@ -25,17 +28,15 @@ Users configure generation parameters (industry, visual style, aspect ratio, col
 - **Headless browser scraping**: Uses Puppeteer + Chromium to render JavaScript-heavy sites, extract computed styles from the live DOM, take screenshots, and fetch key images (OG image, logo, favicon)
 - **Multimodal AI analysis**: Sends page screenshots + key images + scored color data to Gemini for visual brand color identification — sees the actual page, not just raw HTML
 - **Color scoring engine**: Weights colors by element importance (logo 5x, hero/CTA 4x, nav/header 3x, headings 2x, body 1x), merges near-duplicates, filters common defaults, and highlights CSS variables with brand-related names
-- **Smart prompt builder**: Automatically constructs detailed, structured prompts from user inputs
-- **Industry motifs**: 15 industries with curated visual vocabulary
-- **Color palette**: 6 preset palettes + custom RGB/hex color pickers + per-color weight sliders (0-100%) + arrow buttons to reorder colors (moving a color up gives it a higher weight position)
-- **Prompt influence sliders**: Industry motifs, visual style, and city/location intensity (0-100, mapped to language levels from "barely perceptible" to "overwhelming/maximalist")
+- **Industry motifs**: 15 industries with atmospheric/textural descriptions (not object lists) for cohesive scene generation
+- **Color palette**: 6 preset palettes + custom RGB/hex color pickers + arrow buttons to reorder colors
 - **Aspect ratios**: 7 standard social ratios in a compact dropdown (with platform labels like "YouTube / LinkedIn", "Story / Reel")
 - **Visual styles**: 6 styles in a compact dropdown (photorealistic, illustration, abstract, minimalist, gradient, editorial)
 - **Logo overlay**: Draggable event logo extracted from scraping, positioned top-left by default; composited into download; can be hidden/shown
 - **Model selection**: Nano Banana (fast) vs Nano Banana Pro (high fidelity) — in Advanced section, with contextual upsell post-generation
-- **Event theme**: Extracted from scraping (e.g. "AI & Machine Learning", "Sustainable Finance") — adds conceptual visual imagery with intensity control
-- **Venue**: Extracted from scraping (e.g. "Moscone Center") — adds venue architecture with intensity control
-- **City/location**: Optional city backdrop with cultural cues and intensity control
+- **Event theme**: Extracted from scraping (e.g. "AI & Machine Learning", "Sustainable Finance") — adds conceptual visual imagery
+- **Venue**: Extracted from scraping (e.g. "Moscone Center") — adds venue architecture
+- **City/location**: Optional city backdrop with cultural cues
 - **Generation history**: Browse, preview, download, and delete past generations
 - **Prompt reveal**: "View prompt used" toggle beneath preview, shows the exact prompt sent to AI with copy button
 
@@ -52,10 +53,14 @@ Users configure generation parameters (industry, visual style, aspect ratio, col
 - `GET /api/history/:id` — Get a specific image
 - `DELETE /api/history/:id` — Delete an image
 
+## Schema (ImageGenerationConfig)
+
+Key fields: industry, aspectRatio, style, primaryColor, secondaryColor, accentColor, focusPrimary (default "industry"), focusSecondary (default "style"), focusTertiary (default ""), colorProminence (0-100, default 50), city, venue, theme, customPrompt, model
+
 ## Scraper Architecture (`server/scraper/`)
 
-- `browser.ts` — Launches headless Chromium, navigates to URL, takes viewport screenshot. Includes automatic retry with fresh browser instance on navigation failures (frame detachment, timeouts, connection closed) using `domcontentloaded` fallback strategy
-- `dom-colors.ts` — Runs `page.evaluate()` to extract computed styles from high-priority elements (nav, header, hero, logo, CTA, headings), CSS variables, and meta tags (theme-color)
+- `browser.ts` — Launches headless Chromium, navigates to URL, takes viewport screenshot. Includes automatic retry with fresh browser instance on navigation failures
+- `dom-colors.ts` — Runs `page.evaluate()` to extract computed styles from high-priority elements
 - `image-colors.ts` — Identifies and fetches key images (OG image, logo, favicon, apple-touch-icon) for Gemini visual analysis
 - `color-scoring.ts` — Scores, merges near-duplicate shades, filters generic defaults, and ranks colors by importance
 - `index.ts` — Barrel exports

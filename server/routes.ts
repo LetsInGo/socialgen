@@ -21,21 +21,21 @@ const ai = new GoogleGenAI({
 });
 
 const INDUSTRY_MOTIFS: Record<string, string> = {
-  "Technology / SaaS": "abstract network lines, soft gradient mesh, glassmorphism panels, thin circuit traces, clean UI grid, futuristic data visualization",
-  "Cybersecurity": "subtle hex-grid overlay, encrypted glyph texture (abstract, not readable), dark glossy materials, secure vault lighting, deep contrast panels",
-  "Finance / Fintech": "calm geometric grid, subtle market-chart waves (non-numeric), polished stone and glass textures, architectural columns, clean serif typography feel",
-  "Healthcare / Biotech": "soft clinical light, bokeh microscopy shapes, clean white teal palette, gentle organic curves, molecular structures, calm medical aesthetic",
-  "Fashion / Luxury": "editorial studio backdrop, fabric folds with specular highlights, runway light bars, minimal set design, high-fashion negative space",
-  "Food & Beverage": "macro food texture, soft steam haze, ceramic and wood surfaces, warm appetizing light, bokeh café ambience",
-  "Education": "open books and soft paper textures, warm academic tones, subtle pencil sketch elements, warm library light",
-  "Real Estate": "architectural photography feel, clean building facades, natural light and open space, minimalist interior aesthetic",
-  "Travel & Tourism": "sweeping landscape vistas, golden hour glow, atmospheric haze and depth, wanderlust negative space",
-  "Sports & Fitness": "dynamic motion blur, high contrast athletic energy, bold geometric shapes, stadium lighting",
-  "Creative / Design": "geometric patterns and color theory, typographic negative space, creative studio vibe, bold color blocking",
-  "Music & Entertainment": "concert stage lights, neon glow, bokeh light dots, cinematic mood, deep atmosphere",
-  "Non-profit / Social": "warm human tones, uplifting color palette, community and connection motifs, hopeful lighting",
-  "Automotive": "sleek metallic surfaces, dramatic studio lighting, speed lines, precision engineering aesthetic",
-  "E-commerce / Retail": "clean product showcase lighting, minimal white space, modern lifestyle photography feel",
+  "Technology / SaaS": "luminous gradient fields with depth, translucent glassy layers, fine geometric grids dissolving into atmosphere, cool precision aesthetic with faint digital pulse",
+  "Cybersecurity": "deep moody surfaces with encrypted-texture undertones, dark reflective materials, hex-pattern atmospherics, vault-like gravity and controlled light",
+  "Finance / Fintech": "polished stone and glass architecture, calm geometric rhythm, structured elegance with quiet authority, refined institutional atmosphere",
+  "Healthcare / Biotech": "soft clinical luminosity, gentle organic curves and cellular bokeh, clean ethereal atmosphere, translucent layered depth with a sense of care",
+  "Fashion / Luxury": "editorial studio atmosphere, fabric-like light falls, specular highlights on minimal surfaces, runway elegance with high-fashion restraint",
+  "Food & Beverage": "warm appetizing glow, soft textural surfaces of ceramic and natural wood, steam-haze ambience, inviting and tactile warmth",
+  "Education": "warm academic atmosphere, soft paper-like textures, gentle amber light, knowledge-rich depth with scholarly calm",
+  "Real Estate": "architectural light and open space, clean structural lines, natural illumination through modern forms, aspirational spatial clarity",
+  "Travel & Tourism": "sweeping atmospheric depth, golden-hour luminosity, horizon-line perspective, wanderlust-evoking sense of scale and possibility",
+  "Sports & Fitness": "dynamic energy through motion-blur atmosphere, high-contrast bold geometry, stadium-glow intensity, kinetic power",
+  "Creative / Design": "bold color-theory blocking, geometric interplay, creative studio energy, typographic-negative-space sensibility",
+  "Music & Entertainment": "cinematic concert atmosphere, neon-glow halos, deep bokeh light fields, immersive stage-lit mood",
+  "Non-profit / Social": "warm uplifting tones, hopeful ambient light, community-connected softness, gentle optimistic atmosphere",
+  "Automotive": "sleek reflective surfaces, dramatic precision lighting, speed-implied aerodynamic forms, engineered elegance",
+  "E-commerce / Retail": "clean lifestyle-photography atmosphere, modern product-showcase lighting, minimal aspirational space",
 };
 
 const STYLE_DESCRIPTORS: Record<string, string> = {
@@ -57,109 +57,100 @@ const ASPECT_RATIO_LABELS: Record<string, string> = {
   "21:9": "21:9 aspect ratio, ultra-wide cinematic format, website hero banner",
 };
 
-function intensityPrefix(intensity: number): { adjective: string; verb: string } {
-  if (intensity <= 15) return { adjective: "extremely subtle, barely perceptible", verb: "add the faintest trace of" };
-  if (intensity <= 30) return { adjective: "very subtle, understated", verb: "lightly hint at" };
-  if (intensity <= 45) return { adjective: "subtle", verb: "subtly incorporate" };
-  if (intensity <= 55) return { adjective: "", verb: "incorporate" };
-  if (intensity <= 70) return { adjective: "prominent, clearly visible", verb: "prominently feature" };
-  if (intensity <= 85) return { adjective: "bold, dominant", verb: "heavily emphasize" };
-  return { adjective: "overwhelming, maximalist", verb: "make the dominant visual element with" };
+function getDimensionDescription(dimension: string, config: z.infer<typeof imageGenerationConfigSchema>): string | null {
+  const motifs = INDUSTRY_MOTIFS[config.industry] || "professional, clean modern aesthetic";
+  const styleDesc = STYLE_DESCRIPTORS[config.style] || "professional quality";
+
+  switch (dimension) {
+    case "industry":
+      return `the aesthetic world of ${config.industry} — ${motifs}`;
+    case "style":
+      return `a ${styleDesc} visual treatment`;
+    case "theme":
+      return config.theme ? `the conceptual realm of ${config.theme}, with abstract symbolic imagery and patterns evoking this subject` : null;
+    case "city":
+      return config.city ? `the atmosphere of ${config.city} — its iconic skyline, landmarks, and cultural architecture (no readable text or signs)` : null;
+    case "venue":
+      return config.venue ? `the architectural character of ${config.venue} — its structural forms, facade geometry, and spatial presence` : null;
+    default:
+      return null;
+  }
+}
+
+function buildColorPhrase(config: z.infer<typeof imageGenerationConfigSchema>): string {
+  const prominence = config.colorProminence ?? 50;
+  const colors = [config.primaryColor];
+  if (config.secondaryColor) colors.push(config.secondaryColor);
+  if (config.accentColor) colors.push(config.accentColor);
+
+  const primary = config.primaryColor;
+  const secondary = config.secondaryColor || "darker tones";
+  const accent = config.accentColor || "lighter highlights";
+
+  if (prominence <= 20) {
+    return `with a subtle wash of ${colors.join(", ")} as a gentle undertone beneath the composition`;
+  } else if (prominence <= 40) {
+    return `rendered in tones that echo ${primary}, with ${secondary} adding quiet depth and ${accent} as a soft accent`;
+  } else if (prominence <= 60) {
+    return `built around the palette of ${primary} as the dominant hue, ${secondary} providing structural depth, and ${accent} as deliberate highlights`;
+  } else if (prominence <= 80) {
+    return `dominated by ${primary} with bold ${secondary} contrast and ${accent} punctuating key areas — the color palette is a defining feature`;
+  }
+  return `defined entirely by ${primary} as the overwhelming color presence, ${secondary} as dramatic counterpoint, and ${accent} as vivid sparks — color IS the composition`;
 }
 
 function buildPrompt(config: z.infer<typeof imageGenerationConfigSchema>): string {
-  const motifs = INDUSTRY_MOTIFS[config.industry] || "abstract professional background, clean modern aesthetic";
-  const styleDesc = STYLE_DESCRIPTORS[config.style] || "professional quality";
   const ratioLabel = ASPECT_RATIO_LABELS[config.aspectRatio] || config.aspectRatio;
 
-  const pw = config.primaryWeight ?? 70;
-  const sw = config.secondaryWeight ?? 20;
-  const aw = config.accentWeight ?? 10;
+  const validDims = ["industry", "style", "theme", "city", "venue"];
+  const seen = new Set<string>();
+  const normalize = (val: string | undefined, fallback: string): string => {
+    const v = val && validDims.includes(val) && !seen.has(val) ? val : "";
+    if (v) seen.add(v);
+    if (!v && fallback && !seen.has(fallback)) { seen.add(fallback); return fallback; }
+    return v;
+  };
+  const normPrimary = normalize(config.focusPrimary, "industry");
+  const normSecondary = normalize(config.focusSecondary, "style");
+  const normTertiary = normalize(config.focusTertiary, "");
 
-  const colorSection = [
-    `primary color ~${pw}% dominance: ${config.primaryColor}`,
-    config.secondaryColor ? `secondary color ~${sw}%: ${config.secondaryColor}` : null,
-    config.accentColor ? `accent color ~${aw}%: ${config.accentColor}` : null,
-  ]
-    .filter(Boolean)
-    .join(", ");
+  const primaryDesc = getDimensionDescription(normPrimary || "industry", config);
+  const secondaryDesc = normSecondary ? getDimensionDescription(normSecondary, config) : null;
+  const tertiaryDesc = normTertiary ? getDimensionDescription(normTertiary, config) : null;
 
-  const indIntensity = config.industryIntensity ?? 50;
-  const indPrefix = intensityPrefix(indIntensity);
-  const industrySection = indPrefix.adjective
-    ? `Industry theme: ${config.industry} — ${indPrefix.verb} ${indPrefix.adjective} motifs of ${motifs}.`
-    : `Industry theme: ${config.industry} — ${indPrefix.verb} motifs of ${motifs}.`;
+  const colorPhrase = buildColorPhrase(config);
 
-  const styleInt = config.styleIntensity ?? 50;
-  const stylePrefix = intensityPrefix(styleInt);
-  const styledDesc = stylePrefix.adjective
-    ? `${styleDesc}, ${stylePrefix.adjective} stylization`
-    : styleDesc;
+  let sceneParts: string[] = [];
 
-  const cityInt = config.cityIntensity ?? 50;
-  let citySection = "";
-  if (config.city) {
-    if (cityInt <= 25) {
-      citySection = `Set against ${config.city} — use a distant, barely visible skyline silhouette on the horizon, atmospheric haze, no readable text or signs.`;
-    } else if (cityInt <= 45) {
-      citySection = `Set against ${config.city} — use a subtle skyline silhouette or architectural hint, atmospheric lighting, no readable text or signs.`;
-    } else if (cityInt <= 55) {
-      citySection = `Set against ${config.city} — use one unmistakable landmark or skyline silhouette, atmospheric lighting and cultural architecture cues, no readable text or signs.`;
-    } else if (cityInt <= 75) {
-      citySection = `Set prominently against ${config.city} — feature recognizable landmarks and urban skyline as a clear visual element, strong cultural architecture presence, no readable text or signs.`;
-    } else {
-      citySection = `${config.city} as the dominant backdrop — make the city's iconic landmarks and skyline the primary visual focus, dramatic urban atmosphere, no readable text or signs.`;
-    }
+  sceneParts.push(`Create a single, cohesive production-ready social media background image.`);
+
+  if (primaryDesc) {
+    sceneParts.push(`The image is grounded in ${primaryDesc}. This is the dominant visual identity — it defines the scene's character, atmosphere, and spatial feel.`);
   }
 
-  const themeInt = config.themeIntensity ?? 50;
-  const themePrefix = intensityPrefix(themeInt);
-  let themeSection = "";
-  if (config.theme) {
-    themeSection = themePrefix.adjective
-      ? `Event theme: ${config.theme} — ${themePrefix.verb} ${themePrefix.adjective} conceptual visual elements related to this topic (abstract representations, symbolic imagery, relevant patterns).`
-      : `Event theme: ${config.theme} — ${themePrefix.verb} conceptual visual elements related to this topic (abstract representations, symbolic imagery, relevant patterns).`;
+  if (secondaryDesc) {
+    sceneParts.push(`Supporting this, the scene draws from ${secondaryDesc}, which shapes the mood and adds atmospheric richness without competing for attention.`);
   }
 
-  const venueInt = config.venueIntensity ?? 50;
-  let venueSection = "";
-  if (config.venue) {
-    if (venueInt <= 25) {
-      venueSection = `Venue: ${config.venue} — use a faint, abstract hint of the venue's architectural style in the background, barely perceptible.`;
-    } else if (venueInt <= 45) {
-      venueSection = `Venue: ${config.venue} — subtly reference the venue's architecture with soft geometric hints or structural patterns.`;
-    } else if (venueInt <= 55) {
-      venueSection = `Venue: ${config.venue} — incorporate recognizable architectural elements of the venue as part of the background composition.`;
-    } else if (venueInt <= 75) {
-      venueSection = `Venue: ${config.venue} — prominently feature the venue's distinctive architecture and facade as a clear visual element.`;
-    } else {
-      venueSection = `Venue: ${config.venue} — make the venue's iconic architecture the dominant backdrop, with its facade and structural details as the primary visual focus.`;
-    }
+  if (tertiaryDesc) {
+    sceneParts.push(`As a faint background influence, ${tertiaryDesc} adds the subtlest textural detail — barely perceptible but enriching the depth.`);
   }
 
-  const customSection = config.customPrompt
-    ? `Additional details: ${config.customPrompt}.`
-    : "";
+  sceneParts.push(`The entire composition is ${colorPhrase}.`);
 
-  return `Create a production-ready social media background image. ${styledDesc}.
+  sceneParts.push(`CRITICAL: All elements must feel like parts of ONE unified scene — integrated through shared lighting, atmosphere, and color temperature. Nothing should feel placed on top or collaged. Every visual element should emerge naturally from the same world.`);
 
-${industrySection}
+  if (config.customPrompt) {
+    sceneParts.push(`Additional atmosphere: ${config.customPrompt}.`);
+  }
 
-${themeSection}
+  sceneParts.push(`Composition: Design for text overlay — leave generous negative space in the upper-center and lower regions for headlines. Use depth-of-field and atmospheric softness to ensure text readability areas. Focal interest sits at bottom-right or bottom-left, not center.`);
 
-Color palette: ${colorSection}. The background field should reflect these colors with large gradient canvas areas.
+  sceneParts.push(`Constraints: No text, no letters, no numbers, no logos, no watermarks, no readable signage. Clean export-ready background. Professional and polished.`);
 
-Composition: Design for text overlay use — leave generous negative space in the upper-center and lower regions where headlines and body copy will be placed. Use depth-of-field or softness to ensure text readability areas. Focal interest should sit at bottom-right or bottom-left corner, not center.
+  sceneParts.push(`Format: ${ratioLabel}.`);
 
-${citySection}
-
-${venueSection}
-
-${customSection}
-
-Constraints: No text, no letters, no numbers, no logos, no watermarks, no readable signage. Clean export-ready background. Professional and polished.
-
-Format: ${ratioLabel}.`.trim();
+  return sceneParts.join("\n\n");
 }
 
 function isUrlSafe(urlString: string): boolean {

@@ -15,9 +15,9 @@ import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import {
   Wand2, Download, Copy, Loader2, Sparkles, ChevronDown, ChevronUp,
-  Globe, Check, ArrowUp, ArrowDown, SlidersHorizontal, AlertCircle,
+  Globe, Check, ArrowUp, ArrowDown, AlertCircle, Crosshair,
   Palette, Settings2, MapPin, FileText, RefreshCw, Zap, Image as ImageIcon,
-  GripVertical, X, Pencil,
+  X, Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -71,15 +71,19 @@ const PRESET_PALETTES = [
   { name: "Midnight", primary: "#334155", secondary: "#0F172A", accent: "#94A3B8" },
 ];
 
-function intensityLabel(value: number): string {
-  if (value <= 15) return "Minimal";
-  if (value <= 30) return "Subtle";
-  if (value <= 45) return "Light";
-  if (value <= 55) return "Normal";
-  if (value <= 70) return "Strong";
-  if (value <= 85) return "Bold";
-  return "Maximum";
-}
+const DIMENSION_LABELS: Record<string, string> = {
+  industry: "Industry",
+  style: "Visual Style",
+  theme: "Event Theme",
+  city: "City / Location",
+  venue: "Venue",
+};
+
+const TIER_CONFIG = [
+  { field: "focusPrimary" as const, label: "Primary Focus", desc: "Defines the scene", badgeVariant: "default" as const },
+  { field: "focusSecondary" as const, label: "Supporting", desc: "Adds atmosphere", badgeVariant: "secondary" as const },
+  { field: "focusTertiary" as const, label: "Subtle", desc: "Background texture", badgeVariant: "outline" as const },
+];
 
 interface GeneratedResult {
   id: number;
@@ -151,6 +155,124 @@ function CollapsibleSection({
   );
 }
 
+function FocusPrioritySection({ form }: { form: any }) {
+  const industry = form.watch("industry");
+  const style = form.watch("style");
+  const theme = form.watch("theme");
+  const city = form.watch("city");
+  const venue = form.watch("venue");
+  const focusPrimary = form.watch("focusPrimary");
+  const focusSecondary = form.watch("focusSecondary");
+  const focusTertiary = form.watch("focusTertiary");
+
+  const availableDimensions = [
+    { key: "industry", available: true, display: industry },
+    { key: "style", available: true, display: style },
+    { key: "theme", available: !!theme, display: theme },
+    { key: "city", available: !!city, display: city },
+    { key: "venue", available: !!venue, display: venue },
+  ].filter((d) => d.available);
+
+  const assignments: Record<string, string> = {};
+  for (const d of availableDimensions) {
+    if (focusPrimary === d.key) assignments[d.key] = "focusPrimary";
+    else if (focusSecondary === d.key) assignments[d.key] = "focusSecondary";
+    else if (focusTertiary === d.key) assignments[d.key] = "focusTertiary";
+  }
+
+  const cycleDimension = (dimKey: string) => {
+    const current = assignments[dimKey];
+    const tierFields = ["focusPrimary", "focusSecondary", "focusTertiary"] as const;
+
+    if (!current) {
+      for (const tf of tierFields) {
+        if (!form.getValues(tf)) {
+          form.setValue(tf, dimKey);
+          return;
+        }
+      }
+      return;
+    }
+
+    const currentIdx = tierFields.indexOf(current as any);
+
+    for (let i = currentIdx + 1; i < tierFields.length; i++) {
+      if (!form.getValues(tierFields[i])) {
+        form.setValue(tierFields[currentIdx] as any, "");
+        form.setValue(tierFields[i], dimKey);
+        return;
+      }
+    }
+
+    form.setValue(tierFields[currentIdx] as any, "");
+  };
+
+  const getTierForDim = (dimKey: string): number => {
+    if (focusPrimary === dimKey) return 0;
+    if (focusSecondary === dimKey) return 1;
+    if (focusTertiary === dimKey) return 2;
+    return -1;
+  };
+
+  return (
+    <CollapsibleSection title="Focus Priority" icon={Crosshair} testId="section-focus" defaultOpen={true}>
+      <div className="space-y-3">
+        <p className="text-[10px] text-muted-foreground">Click to assign what the image focuses on. Primary defines the scene, supporting adds mood, subtle adds texture.</p>
+        <div className="space-y-2">
+          {TIER_CONFIG.map((tier, tierIdx) => {
+            const assignedDim = availableDimensions.find((d) => getTierForDim(d.key) === tierIdx);
+            return (
+              <div key={tier.field} className="flex items-center gap-2" data-testid={`tier-${tier.field}`}>
+                <div className="w-[72px] flex-shrink-0">
+                  <p className="text-[10px] font-semibold">{tier.label}</p>
+                  <p className="text-[9px] text-muted-foreground">{tier.desc}</p>
+                </div>
+                <div className="flex-1 flex flex-wrap gap-1">
+                  {assignedDim ? (
+                    <Badge
+                      variant={tier.badgeVariant}
+                      className={cn(
+                        "text-[10px] h-6 cursor-pointer select-none transition-all",
+                        tierIdx === 0 && "ring-1 ring-primary/30"
+                      )}
+                      onClick={() => cycleDimension(assignedDim.key)}
+                      data-testid={`focus-chip-${assignedDim.key}`}
+                    >
+                      {DIMENSION_LABELS[assignedDim.key]}
+                      <span className="ml-1 text-[9px] opacity-60 max-w-[80px] truncate">{assignedDim.display}</span>
+                    </Badge>
+                  ) : (
+                    <span className="text-[10px] text-muted-foreground/40 italic">unassigned</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <Separator />
+
+        <div className="flex flex-wrap gap-1">
+          {availableDimensions.filter((d) => getTierForDim(d.key) === -1).map((d) => (
+            <Badge
+              key={d.key}
+              variant="outline"
+              className="text-[10px] h-6 cursor-pointer opacity-50 hover:opacity-100 transition-opacity"
+              onClick={() => cycleDimension(d.key)}
+              data-testid={`focus-chip-unassigned-${d.key}`}
+            >
+              {DIMENSION_LABELS[d.key]}
+            </Badge>
+          ))}
+          {availableDimensions.filter((d) => getTierForDim(d.key) === -1).length === 0 && (
+            <p className="text-[10px] text-muted-foreground/40 italic">All dimensions assigned</p>
+          )}
+        </div>
+      </div>
+    </CollapsibleSection>
+  );
+}
+
 export default function GeneratorPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -204,17 +326,13 @@ export default function GeneratorPage() {
       primaryColor: "#0A84FF",
       secondaryColor: "#0B1F3B",
       accentColor: "#64D2FF",
-      primaryWeight: 70,
-      secondaryWeight: 20,
-      accentWeight: 10,
-      industryIntensity: 50,
-      cityIntensity: 50,
-      styleIntensity: 50,
+      focusPrimary: "industry",
+      focusSecondary: "style",
+      focusTertiary: "",
+      colorProminence: 50,
       city: "",
       venue: "",
       theme: "",
-      venueIntensity: 50,
-      themeIntensity: 50,
       customPrompt: "",
       model: "gemini-2.5-flash-image",
     },
@@ -252,9 +370,9 @@ export default function GeneratorPage() {
       form.setValue("theme", data.theme || "");
       form.setValue("customPrompt", data.customPrompt || "");
       setShowPresets(false);
-      form.setValue("primaryWeight", 70);
-      form.setValue("secondaryWeight", 20);
-      form.setValue("accentWeight", 10);
+      form.setValue("focusPrimary", "industry");
+      form.setValue("focusSecondary", "style");
+      form.setValue("focusTertiary", data.theme ? "theme" : "");
       toast({
         title: "Website analyzed",
         description: data.eventName
@@ -376,10 +494,10 @@ export default function GeneratorPage() {
 
   const selectedRatio = form.watch("aspectRatio");
 
-  const colorFields: { role: ColorRole; label: string; colorKey: keyof ImageGenerationConfig; weightKey: keyof ImageGenerationConfig; testIdColor: string; testIdInput: string; testIdWeight: string; defaultFallback: string }[] = [
-    { role: "primary", label: "Primary", colorKey: "primaryColor", weightKey: "primaryWeight", testIdColor: "color-primary", testIdInput: "input-primary-color", testIdWeight: "slider-primary-weight", defaultFallback: "#0A84FF" },
-    { role: "secondary", label: "Secondary", colorKey: "secondaryColor", weightKey: "secondaryWeight", testIdColor: "color-secondary", testIdInput: "input-secondary-color", testIdWeight: "slider-secondary-weight", defaultFallback: "#000000" },
-    { role: "accent", label: "Accent", colorKey: "accentColor", weightKey: "accentWeight", testIdColor: "color-accent", testIdInput: "input-accent-color", testIdWeight: "slider-accent-weight", defaultFallback: "#ffffff" },
+  const colorFields: { role: ColorRole; label: string; colorKey: keyof ImageGenerationConfig; testIdColor: string; testIdInput: string; defaultFallback: string }[] = [
+    { role: "primary", label: "Primary", colorKey: "primaryColor", testIdColor: "color-primary", testIdInput: "input-primary-color", defaultFallback: "#0A84FF" },
+    { role: "secondary", label: "Secondary", colorKey: "secondaryColor", testIdColor: "color-secondary", testIdInput: "input-secondary-color", defaultFallback: "#000000" },
+    { role: "accent", label: "Accent", colorKey: "accentColor", testIdColor: "color-accent", testIdInput: "input-accent-color", defaultFallback: "#ffffff" },
   ];
 
   return (
@@ -865,61 +983,34 @@ export default function GeneratorPage() {
                             )}
                           />
                         </div>
-                        <FormField
-                          control={form.control}
-                          name={cf.weightKey as any}
-                          render={({ field }) => (
-                            <FormItem className="pl-6">
-                              <div className="flex items-center gap-2">
-                                <Slider min={0} max={100} step={5} value={[field.value as number]} onValueChange={([v]) => field.onChange(v)} className="flex-1" data-testid={cf.testIdWeight} />
-                                <span className="text-[10px] font-mono text-muted-foreground w-8 text-right">{field.value as number}%</span>
-                              </div>
-                            </FormItem>
-                          )}
-                        />
                       </div>
                     ))}
+
+                    <Separator />
+
+                    <FormField
+                      control={form.control}
+                      name="colorProminence"
+                      render={({ field }) => (
+                        <FormItem>
+                          <div className="flex items-center justify-between mb-0.5">
+                            <FormLabel className="text-[11px] font-medium">Color Prominence</FormLabel>
+                            <span className="text-[10px] text-muted-foreground">
+                              {(field.value as number) <= 20 ? "Subtle tint" :
+                               (field.value as number) <= 40 ? "Soft presence" :
+                               (field.value as number) <= 60 ? "Balanced" :
+                               (field.value as number) <= 80 ? "Bold" : "Color dominant"}
+                            </span>
+                          </div>
+                          <Slider min={0} max={100} step={5} value={[field.value as number]} onValueChange={([v]) => field.onChange(v)} data-testid="slider-colorProminence" />
+                        </FormItem>
+                      )}
+                    />
                   </div>
                 </CollapsibleSection>
 
-                {/* Fine-Tune (Intensity Sliders) */}
-                <CollapsibleSection title="Fine-Tune" icon={SlidersHorizontal} testId="section-fine-tune">
-                  <div className="space-y-3">
-                    {([
-                      { name: "industryIntensity" as const, label: "Industry Motifs", valueKey: "industry" as const, testId: "slider-industry-intensity" },
-                      { name: "styleIntensity" as const, label: "Visual Style", valueKey: "style" as const, testId: "slider-style-intensity" },
-                      { name: "themeIntensity" as const, label: "Event Theme", valueKey: "theme" as const, testId: "slider-theme-intensity" },
-                      { name: "cityIntensity" as const, label: "City / Location", valueKey: "city" as const, testId: "slider-city-intensity" },
-                      { name: "venueIntensity" as const, label: "Venue", valueKey: "venue" as const, testId: "slider-venue-intensity" },
-                    ]).map((item) => {
-                      const currentValue = form.watch(item.valueKey);
-                      const displayValue = typeof currentValue === "string" && currentValue ? currentValue : null;
-                      return (
-                        <FormField
-                          key={item.name}
-                          control={form.control}
-                          name={item.name}
-                          render={({ field }) => (
-                            <FormItem>
-                              <div className="flex items-center justify-between mb-0.5">
-                                <FormLabel className="text-[11px] font-medium">
-                                  {item.label}
-                                  {displayValue && (
-                                    <span className="text-[10px] text-primary/70 font-normal ml-1.5" data-testid={`label-${item.valueKey}-value`}>
-                                      {displayValue}
-                                    </span>
-                                  )}
-                                </FormLabel>
-                                <span className="text-[10px] text-muted-foreground">{intensityLabel(field.value as number)} ({field.value}%)</span>
-                              </div>
-                              <Slider min={0} max={100} step={5} value={[field.value as number]} onValueChange={([v]) => field.onChange(v)} data-testid={item.testId} />
-                            </FormItem>
-                          )}
-                        />
-                      );
-                    })}
-                  </div>
-                </CollapsibleSection>
+                {/* Focus Priority */}
+                <FocusPrioritySection form={form} />
 
                 {/* Advanced (City, Custom Prompt, Model) */}
                 <CollapsibleSection title="Advanced" icon={Settings2} testId="section-advanced">
