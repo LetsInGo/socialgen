@@ -72,6 +72,8 @@ function getDimensionDescription(dimension: string, config: z.infer<typeof image
       return config.city ? `the atmosphere of ${config.city} — its iconic skyline, landmarks, and cultural architecture (no readable text or signs)` : null;
     case "venue":
       return config.venue ? `the architectural character of ${config.venue} — its structural forms, facade geometry, and spatial presence` : null;
+    case "graphic":
+      return `the visual language and graphic style of the brand's current header imagery — its composition patterns, color blocking, and design motifs`;
     default:
       return null;
   }
@@ -102,38 +104,51 @@ function buildColorPhrase(config: z.infer<typeof imageGenerationConfigSchema>): 
 function buildPrompt(config: z.infer<typeof imageGenerationConfigSchema>): string {
   const ratioLabel = ASPECT_RATIO_LABELS[config.aspectRatio] || config.aspectRatio;
 
-  const validDims = ["industry", "style", "theme", "city", "venue"];
+  const validDims = ["industry", "theme", "city", "venue", "graphic"];
   const seen = new Set<string>();
-  const normalize = (val: string | undefined, fallback: string): string => {
-    const v = val && validDims.includes(val) && !seen.has(val) ? val : "";
-    if (v) seen.add(v);
-    if (!v && fallback && !seen.has(fallback)) { seen.add(fallback); return fallback; }
-    return v;
+  const normalizeTier = (arr: string[] | undefined, fallback: string[]): string[] => {
+    const result: string[] = [];
+    if (arr) {
+      for (const v of arr) {
+        if (validDims.includes(v) && !seen.has(v)) { seen.add(v); result.push(v); }
+      }
+    }
+    if (result.length === 0) {
+      for (const fb of fallback) {
+        if (!seen.has(fb)) { seen.add(fb); result.push(fb); break; }
+      }
+    }
+    return result;
   };
-  const normPrimary = normalize(config.focusPrimary, "industry");
-  const normSecondary = normalize(config.focusSecondary, "style");
-  const normTertiary = normalize(config.focusTertiary, "");
+  const normPrimary = normalizeTier(config.focusPrimary, ["industry"]);
+  const normSecondary = normalizeTier(config.focusSecondary, []);
+  const normTertiary = normalizeTier(config.focusTertiary, []);
 
-  const primaryDesc = getDimensionDescription(normPrimary || "industry", config);
-  const secondaryDesc = normSecondary ? getDimensionDescription(normSecondary, config) : null;
-  const tertiaryDesc = normTertiary ? getDimensionDescription(normTertiary, config) : null;
+  const getTierDescs = (dims: string[]): string[] =>
+    dims.map((d) => getDimensionDescription(d, config)).filter((d): d is string => d !== null);
+
+  const primaryDescs = getTierDescs(normPrimary);
+  const secondaryDescs = getTierDescs(normSecondary);
+  const tertiaryDescs = getTierDescs(normTertiary);
 
   const colorPhrase = buildColorPhrase(config);
 
   let sceneParts: string[] = [];
 
-  sceneParts.push(`Create a single, cohesive production-ready social media background image.`);
+  const styleDesc = STYLE_DESCRIPTORS[config.style] || "professional quality";
 
-  if (primaryDesc) {
-    sceneParts.push(`The image is grounded in ${primaryDesc}. This is the dominant visual identity — it defines the scene's character, atmosphere, and spatial feel.`);
+  sceneParts.push(`Create a single, cohesive production-ready social media background image rendered as ${styleDesc}.`);
+
+  if (primaryDescs.length > 0) {
+    sceneParts.push(`The image is grounded in ${primaryDescs.join(", interwoven with ")}. This is the dominant visual identity — it defines the scene's character, atmosphere, and spatial feel.`);
   }
 
-  if (secondaryDesc) {
-    sceneParts.push(`Supporting this, the scene draws from ${secondaryDesc}, which shapes the mood and adds atmospheric richness without competing for attention.`);
+  if (secondaryDescs.length > 0) {
+    sceneParts.push(`Supporting this, the scene draws from ${secondaryDescs.join(" and ")}, which shapes the mood and adds atmospheric richness without competing for attention.`);
   }
 
-  if (tertiaryDesc) {
-    sceneParts.push(`As a faint background influence, ${tertiaryDesc} adds the subtlest textural detail — barely perceptible but enriching the depth.`);
+  if (tertiaryDescs.length > 0) {
+    sceneParts.push(`As a faint background influence, ${tertiaryDescs.join(" and ")} adds the subtlest textural detail — barely perceptible but enriching the depth.`);
   }
 
   sceneParts.push(`The entire composition is ${colorPhrase}.`);

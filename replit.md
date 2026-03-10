@@ -17,10 +17,10 @@ Users configure generation parameters (industry, visual style, aspect ratio, col
 ## Key Features
 
 - **Preview-dominant layout**: Large preview hero panel (left, ~65%) with compact config panel (right, ~35%). Preview is the focal point, not the form.
-- **Progressive disclosure**: Config sections (Industry, Colors, Focus Priority, Advanced) collapse behind toggles. Only URL input, style picker, and Generate button visible above the fold.
-- **Focus Priority system**: Three tiers (Primary/Supporting/Subtle) where users assign dimensions (industry, style, theme, city, venue) as clickable chips that cycle between tiers. Primary defines the scene (~60%), Supporting adds atmosphere (~25%), Subtle adds texture (~15%). Replaces the old 5 intensity sliders.
-- **Color Prominence slider**: Single 0-100 slider controlling how much brand colors dominate the image. Replaces the old per-color weight sliders. Labels: Subtle tint → Soft presence → Balanced → Bold → Color dominant.
-- **Cohesive scene prompts**: buildPrompt() generates a single flowing paragraph describing a unified scene structured around focus priority tiers, not a bulleted list. Backend normalizes focus tiers to prevent duplicates/invalid values.
+- **Above-the-fold layout**: URL input, Style/Aspect dropdowns, Focus Priority multi-select, Color Prominence slider, and Generate button are all visible without scrolling. Industry, Colors, and other settings are in the Advanced collapsible section.
+- **Focus Priority system**: Three tiers (Primary/Supporting/Subtle) with multi-select badge toggles. Each tier can have multiple dimensions (industry, city, venue, current header graphic, theme). Options are exclusive across tiers. Style is always applied via the style dropdown and is not a focus dimension. Default: industry in Primary.
+- **Brand Color Prominence slider**: Single 0-100 slider controlling how much brand colors dominate the image. Labels: Subtle tint / Soft presence / Balanced / Bold / Color dominant. Always visible above Generate button.
+- **Cohesive scene prompts**: buildPrompt() generates a single flowing paragraph describing a unified scene. Style description is always included. Focus tiers add dimension-specific descriptions. Backend normalizes arrays to prevent duplicates/invalid values.
 - **Skeleton shimmer loading**: Premium shimmer animation in preview area during generation. Error states shown inline in preview with retry buttons.
 - **Contextual Pro upsell**: After generating with Fast model, a subtle banner suggests trying Pro — not buried in the form.
 - **Inline error states**: URL analysis failures and generation errors shown in context with actionable "Try again" buttons, not just toast notifications.
@@ -55,7 +55,7 @@ Users configure generation parameters (industry, visual style, aspect ratio, col
 
 ## Schema (ImageGenerationConfig)
 
-Key fields: industry, aspectRatio, style, primaryColor, secondaryColor, accentColor, focusPrimary (default "industry"), focusSecondary (default "style"), focusTertiary (default ""), colorProminence (0-100, default 50), city, venue, theme, customPrompt, model
+Key fields: industry, aspectRatio, style, primaryColor, secondaryColor, accentColor, focusPrimary (string array, default ["industry"]), focusSecondary (string array, default []), focusTertiary (string array, default []), colorProminence (0-100, default 50), city, venue, theme, customPrompt, model. Focus options: industry, city, venue, graphic, theme.
 
 ## Scraper Architecture (`server/scraper/`)
 

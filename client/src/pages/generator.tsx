@@ -71,18 +71,18 @@ const PRESET_PALETTES = [
   { name: "Midnight", primary: "#334155", secondary: "#0F172A", accent: "#94A3B8" },
 ];
 
-const DIMENSION_LABELS: Record<string, string> = {
-  industry: "Industry",
-  style: "Visual Style",
-  theme: "Event Theme",
-  city: "City / Location",
-  venue: "Venue",
-};
+const FOCUS_OPTIONS = [
+  { value: "industry", label: "Industry" },
+  { value: "city", label: "City / Location" },
+  { value: "venue", label: "Venue" },
+  { value: "graphic", label: "Current Header Graphic" },
+  { value: "theme", label: "Theme" },
+];
 
 const TIER_CONFIG = [
-  { field: "focusPrimary" as const, label: "Primary Focus", desc: "Defines the scene", badgeVariant: "default" as const },
-  { field: "focusSecondary" as const, label: "Supporting", desc: "Adds atmosphere", badgeVariant: "secondary" as const },
-  { field: "focusTertiary" as const, label: "Subtle", desc: "Background texture", badgeVariant: "outline" as const },
+  { field: "focusPrimary" as const, label: "Primary Focus", desc: "Defines the scene" },
+  { field: "focusSecondary" as const, label: "Supporting", desc: "Adds atmosphere" },
+  { field: "focusTertiary" as const, label: "Subtle", desc: "Background texture" },
 ];
 
 interface GeneratedResult {
@@ -155,121 +155,58 @@ function CollapsibleSection({
   );
 }
 
-function FocusPrioritySection({ form }: { form: any }) {
-  const industry = form.watch("industry");
-  const style = form.watch("style");
-  const theme = form.watch("theme");
-  const city = form.watch("city");
-  const venue = form.watch("venue");
-  const focusPrimary = form.watch("focusPrimary");
-  const focusSecondary = form.watch("focusSecondary");
-  const focusTertiary = form.watch("focusTertiary");
+function FocusTierSelect({ form, tierField, label, desc, testId }: {
+  form: any;
+  tierField: "focusPrimary" | "focusSecondary" | "focusTertiary";
+  label: string;
+  desc: string;
+  testId: string;
+}) {
+  const allTierFields = ["focusPrimary", "focusSecondary", "focusTertiary"] as const;
+  const otherTiers = allTierFields.filter((f) => f !== tierField);
+  const otherValues = otherTiers.flatMap((f) => (form.watch(f) as string[]) || []);
+  const currentValues: string[] = form.watch(tierField) || [];
 
-  const availableDimensions = [
-    { key: "industry", available: true, display: industry },
-    { key: "style", available: true, display: style },
-    { key: "theme", available: !!theme, display: theme },
-    { key: "city", available: !!city, display: city },
-    { key: "venue", available: !!venue, display: venue },
-  ].filter((d) => d.available);
+  const availableOptions = FOCUS_OPTIONS.filter(
+    (opt) => !otherValues.includes(opt.value) || currentValues.includes(opt.value)
+  );
 
-  const assignments: Record<string, string> = {};
-  for (const d of availableDimensions) {
-    if (focusPrimary === d.key) assignments[d.key] = "focusPrimary";
-    else if (focusSecondary === d.key) assignments[d.key] = "focusSecondary";
-    else if (focusTertiary === d.key) assignments[d.key] = "focusTertiary";
-  }
-
-  const cycleDimension = (dimKey: string) => {
-    const current = assignments[dimKey];
-    const tierFields = ["focusPrimary", "focusSecondary", "focusTertiary"] as const;
-
-    if (!current) {
-      for (const tf of tierFields) {
-        if (!form.getValues(tf)) {
-          form.setValue(tf, dimKey);
-          return;
-        }
-      }
-      return;
+  const toggleOption = (value: string) => {
+    if (currentValues.includes(value)) {
+      form.setValue(tierField, currentValues.filter((v: string) => v !== value));
+    } else {
+      form.setValue(tierField, [...currentValues, value]);
     }
-
-    const currentIdx = tierFields.indexOf(current as any);
-
-    for (let i = currentIdx + 1; i < tierFields.length; i++) {
-      if (!form.getValues(tierFields[i])) {
-        form.setValue(tierFields[currentIdx] as any, "");
-        form.setValue(tierFields[i], dimKey);
-        return;
-      }
-    }
-
-    form.setValue(tierFields[currentIdx] as any, "");
-  };
-
-  const getTierForDim = (dimKey: string): number => {
-    if (focusPrimary === dimKey) return 0;
-    if (focusSecondary === dimKey) return 1;
-    if (focusTertiary === dimKey) return 2;
-    return -1;
   };
 
   return (
-    <CollapsibleSection title="Focus Priority" icon={Crosshair} testId="section-focus" defaultOpen={true}>
-      <div className="space-y-3">
-        <p className="text-[10px] text-muted-foreground">Click to assign what the image focuses on. Primary defines the scene, supporting adds mood, subtle adds texture.</p>
-        <div className="space-y-2">
-          {TIER_CONFIG.map((tier, tierIdx) => {
-            const assignedDim = availableDimensions.find((d) => getTierForDim(d.key) === tierIdx);
-            return (
-              <div key={tier.field} className="flex items-center gap-2" data-testid={`tier-${tier.field}`}>
-                <div className="w-[72px] flex-shrink-0">
-                  <p className="text-[10px] font-semibold">{tier.label}</p>
-                  <p className="text-[9px] text-muted-foreground">{tier.desc}</p>
-                </div>
-                <div className="flex-1 flex flex-wrap gap-1">
-                  {assignedDim ? (
-                    <Badge
-                      variant={tier.badgeVariant}
-                      className={cn(
-                        "text-[10px] h-6 cursor-pointer select-none transition-all",
-                        tierIdx === 0 && "ring-1 ring-primary/30"
-                      )}
-                      onClick={() => cycleDimension(assignedDim.key)}
-                      data-testid={`focus-chip-${assignedDim.key}`}
-                    >
-                      {DIMENSION_LABELS[assignedDim.key]}
-                      <span className="ml-1 text-[9px] opacity-60 max-w-[80px] truncate">{assignedDim.display}</span>
-                    </Badge>
-                  ) : (
-                    <span className="text-[10px] text-muted-foreground/40 italic">unassigned</span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        <Separator />
-
-        <div className="flex flex-wrap gap-1">
-          {availableDimensions.filter((d) => getTierForDim(d.key) === -1).map((d) => (
+    <div data-testid={testId}>
+      <p className="text-[11px] font-medium mb-1">{label}</p>
+      <p className="text-[9px] text-muted-foreground mb-1.5">{desc}</p>
+      <div className="flex flex-wrap gap-1">
+        {availableOptions.map((opt) => {
+          const selected = currentValues.includes(opt.value);
+          return (
             <Badge
-              key={d.key}
-              variant="outline"
-              className="text-[10px] h-6 cursor-pointer opacity-50 hover:opacity-100 transition-opacity"
-              onClick={() => cycleDimension(d.key)}
-              data-testid={`focus-chip-unassigned-${d.key}`}
+              key={opt.value}
+              variant={selected ? "default" : "outline"}
+              className={cn(
+                "text-[10px] h-6 cursor-pointer select-none transition-all",
+                selected ? "ring-1 ring-primary/30" : "opacity-60 hover:opacity-100"
+              )}
+              onClick={() => toggleOption(opt.value)}
+              data-testid={`focus-option-${tierField}-${opt.value}`}
             >
-              {DIMENSION_LABELS[d.key]}
+              {selected && <Check className="h-2.5 w-2.5 mr-0.5" />}
+              {opt.label}
             </Badge>
-          ))}
-          {availableDimensions.filter((d) => getTierForDim(d.key) === -1).length === 0 && (
-            <p className="text-[10px] text-muted-foreground/40 italic">All dimensions assigned</p>
-          )}
-        </div>
+          );
+        })}
+        {availableOptions.length === 0 && (
+          <span className="text-[10px] text-muted-foreground/40 italic">All options assigned to other tiers</span>
+        )}
       </div>
-    </CollapsibleSection>
+    </div>
   );
 }
 
@@ -326,9 +263,9 @@ export default function GeneratorPage() {
       primaryColor: "#0A84FF",
       secondaryColor: "#0B1F3B",
       accentColor: "#64D2FF",
-      focusPrimary: "industry",
-      focusSecondary: "style",
-      focusTertiary: "",
+      focusPrimary: ["industry"],
+      focusSecondary: [] as string[],
+      focusTertiary: [] as string[],
       colorProminence: 50,
       city: "",
       venue: "",
@@ -370,9 +307,9 @@ export default function GeneratorPage() {
       form.setValue("theme", data.theme || "");
       form.setValue("customPrompt", data.customPrompt || "");
       setShowPresets(false);
-      form.setValue("focusPrimary", "industry");
-      form.setValue("focusSecondary", "style");
-      form.setValue("focusTertiary", data.theme ? "theme" : "");
+      form.setValue("focusPrimary", ["industry"]);
+      form.setValue("focusSecondary", data.theme ? ["theme"] : []);
+      form.setValue("focusTertiary", []);
       toast({
         title: "Website analyzed",
         description: data.eventName
@@ -868,6 +805,49 @@ export default function GeneratorPage() {
                   />
                 </div>
 
+                {/* Focus Priority — always visible, above Generate */}
+                <div className="space-y-3 border border-border rounded-lg p-3" data-testid="section-focus">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+                    <Crosshair className="h-3.5 w-3.5" />
+                    Focus Priority
+                  </div>
+                  {TIER_CONFIG.map((tier) => (
+                    <FocusTierSelect
+                      key={tier.field}
+                      form={form}
+                      tierField={tier.field}
+                      label={tier.label}
+                      desc={tier.desc}
+                      testId={`tier-${tier.field}`}
+                    />
+                  ))}
+                </div>
+
+                {/* Color Prominence — always visible, above Generate */}
+                <div className="border border-border rounded-lg p-3" data-testid="section-color-prominence">
+                  <FormField
+                    control={form.control}
+                    name="colorProminence"
+                    render={({ field }) => (
+                      <FormItem>
+                        <div className="flex items-center justify-between mb-0.5">
+                          <FormLabel className="text-[11px] font-medium flex items-center gap-2">
+                            <Palette className="h-3.5 w-3.5 text-muted-foreground" />
+                            Brand Color Prominence
+                          </FormLabel>
+                          <span className="text-[10px] text-muted-foreground">
+                            {(field.value as number) <= 20 ? "Subtle tint" :
+                             (field.value as number) <= 40 ? "Soft presence" :
+                             (field.value as number) <= 60 ? "Balanced" :
+                             (field.value as number) <= 80 ? "Bold" : "Color dominant"}
+                          </span>
+                        </div>
+                        <Slider min={0} max={100} step={5} value={[field.value as number]} onValueChange={([v]) => field.onChange(v)} data-testid="slider-colorProminence" />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
                 {/* GENERATE BUTTON — Primary CTA */}
                 <Button
                   type="submit"
@@ -893,128 +873,104 @@ export default function GeneratorPage() {
 
                 {/* === PROGRESSIVE DISCLOSURE SECTIONS === */}
 
-                {/* Industry */}
-                <CollapsibleSection title="Industry" icon={Settings2} testId="section-industry">
-                  <FormField
-                    control={form.control}
-                    name="industry"
-                    render={({ field }) => (
-                      <FormItem>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger data-testid="select-industry" className="h-9">
-                              <SelectValue placeholder="Select industry" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {INDUSTRIES.map((ind) => (
-                              <SelectItem key={ind} value={ind}>{ind}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <p className="text-[10px] text-muted-foreground">Adds industry-specific motifs and visual vocabulary</p>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </CollapsibleSection>
-
-                {/* Colors & Palette */}
-                <CollapsibleSection title="Colors & Palette" icon={Palette} testId="section-colors">
+                {/* Advanced — contains Industry, Colors, Theme, City, Venue, Instructions, Model */}
+                <CollapsibleSection title="Advanced" icon={Settings2} testId="section-advanced">
                   <div className="space-y-3">
-                    <div>
-                      <button
-                        type="button"
-                        onClick={() => setShowPresets(!showPresets)}
-                        className="flex items-center justify-between w-full text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
-                        data-testid="button-toggle-presets"
-                      >
-                        <span>Presets</span>
-                        {showPresets ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                      </button>
-                      {showPresets && (
-                        <div className="grid grid-cols-3 gap-1 mt-1.5">
-                          {PRESET_PALETTES.map((p) => (
-                            <button
-                              key={p.name}
-                              type="button"
-                              data-testid={`palette-${p.name.toLowerCase().replace(" ", "-")}`}
-                              onClick={() => applyPalette(p)}
-                              className="flex flex-col items-center gap-1 p-1.5 rounded-md border border-border text-[10px] text-muted-foreground hover:border-primary/40 transition-colors"
-                            >
-                              <div className="flex gap-0.5">
-                                <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.primary }} />
-                                <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.secondary }} />
-                                <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.accent }} />
-                              </div>
-                              <span className="truncate w-full text-center">{p.name}</span>
-                            </button>
-                          ))}
-                        </div>
+                    <FormField
+                      control={form.control}
+                      name="industry"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-[11px] font-medium">Industry</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger data-testid="select-industry" className="h-9">
+                                <SelectValue placeholder="Select industry" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {INDUSTRIES.map((ind) => (
+                                <SelectItem key={ind} value={ind}>{ind}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-[10px] text-muted-foreground">Adds industry-specific motifs and visual vocabulary</p>
+                          <FormMessage />
+                        </FormItem>
                       )}
+                    />
+
+                    <Separator />
+
+                    <div>
+                      <p className="text-[11px] font-medium mb-2">Colors & Palette</p>
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => setShowPresets(!showPresets)}
+                          className="flex items-center justify-between w-full text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+                          data-testid="button-toggle-presets"
+                        >
+                          <span>Presets</span>
+                          {showPresets ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                        </button>
+                        {showPresets && (
+                          <div className="grid grid-cols-3 gap-1 mt-1.5">
+                            {PRESET_PALETTES.map((p) => (
+                              <button
+                                key={p.name}
+                                type="button"
+                                data-testid={`palette-${p.name.toLowerCase().replace(" ", "-")}`}
+                                onClick={() => applyPalette(p)}
+                                className="flex flex-col items-center gap-1 p-1.5 rounded-md border border-border text-[10px] text-muted-foreground hover:border-primary/40 transition-colors"
+                              >
+                                <div className="flex gap-0.5">
+                                  <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.primary }} />
+                                  <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.secondary }} />
+                                  <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.accent }} />
+                                </div>
+                                <span className="truncate w-full text-center">{p.name}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-2 mt-2">
+                        {colorFields.map((cf, index) => (
+                          <div key={cf.role} className="space-y-1.5" data-testid={`color-row-${cf.role}`}>
+                            <div className="flex items-center gap-1.5">
+                              <div className="flex flex-col gap-0">
+                                <button type="button" disabled={index === 0} onClick={() => swapColors(index, "up")} className="p-0.5 rounded hover:bg-muted disabled:opacity-20 transition-colors" data-testid={`button-color-up-${cf.role}`}>
+                                  <ArrowUp className="h-2.5 w-2.5" />
+                                </button>
+                                <button type="button" disabled={index === colorFields.length - 1} onClick={() => swapColors(index, "down")} className="p-0.5 rounded hover:bg-muted disabled:opacity-20 transition-colors" data-testid={`button-color-down-${cf.role}`}>
+                                  <ArrowDown className="h-2.5 w-2.5" />
+                                </button>
+                              </div>
+                              <FormField
+                                control={form.control}
+                                name={cf.colorKey as any}
+                                render={({ field }) => (
+                                  <FormItem className="flex-1">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="flex items-center gap-1.5">
+                                        <input type="color" value={field.value as string || cf.defaultFallback} onChange={(e) => field.onChange(e.target.value)} className="w-6 h-6 rounded cursor-pointer border border-border" data-testid={cf.testIdColor} />
+                                        <span className="text-[11px] font-medium text-muted-foreground">{cf.label}</span>
+                                      </div>
+                                      <Input value={field.value as string} onChange={(e) => field.onChange(e.target.value)} className="w-20 h-6 text-[10px] font-mono uppercase px-1.5" placeholder={cf.defaultFallback} data-testid={cf.testIdInput} />
+                                    </div>
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
 
                     <Separator />
 
-                    {colorFields.map((cf, index) => (
-                      <div key={cf.role} className="space-y-1.5" data-testid={`color-row-${cf.role}`}>
-                        <div className="flex items-center gap-1.5">
-                          <div className="flex flex-col gap-0">
-                            <button type="button" disabled={index === 0} onClick={() => swapColors(index, "up")} className="p-0.5 rounded hover:bg-muted disabled:opacity-20 transition-colors" data-testid={`button-color-up-${cf.role}`}>
-                              <ArrowUp className="h-2.5 w-2.5" />
-                            </button>
-                            <button type="button" disabled={index === colorFields.length - 1} onClick={() => swapColors(index, "down")} className="p-0.5 rounded hover:bg-muted disabled:opacity-20 transition-colors" data-testid={`button-color-down-${cf.role}`}>
-                              <ArrowDown className="h-2.5 w-2.5" />
-                            </button>
-                          </div>
-                          <FormField
-                            control={form.control}
-                            name={cf.colorKey as any}
-                            render={({ field }) => (
-                              <FormItem className="flex-1">
-                                <div className="flex items-center justify-between gap-2">
-                                  <div className="flex items-center gap-1.5">
-                                    <input type="color" value={field.value as string || cf.defaultFallback} onChange={(e) => field.onChange(e.target.value)} className="w-6 h-6 rounded cursor-pointer border border-border" data-testid={cf.testIdColor} />
-                                    <span className="text-[11px] font-medium text-muted-foreground">{cf.label}</span>
-                                  </div>
-                                  <Input value={field.value as string} onChange={(e) => field.onChange(e.target.value)} className="w-20 h-6 text-[10px] font-mono uppercase px-1.5" placeholder={cf.defaultFallback} data-testid={cf.testIdInput} />
-                                </div>
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-                      </div>
-                    ))}
-
-                    <Separator />
-
-                    <FormField
-                      control={form.control}
-                      name="colorProminence"
-                      render={({ field }) => (
-                        <FormItem>
-                          <div className="flex items-center justify-between mb-0.5">
-                            <FormLabel className="text-[11px] font-medium">Color Prominence</FormLabel>
-                            <span className="text-[10px] text-muted-foreground">
-                              {(field.value as number) <= 20 ? "Subtle tint" :
-                               (field.value as number) <= 40 ? "Soft presence" :
-                               (field.value as number) <= 60 ? "Balanced" :
-                               (field.value as number) <= 80 ? "Bold" : "Color dominant"}
-                            </span>
-                          </div>
-                          <Slider min={0} max={100} step={5} value={[field.value as number]} onValueChange={([v]) => field.onChange(v)} data-testid="slider-colorProminence" />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </CollapsibleSection>
-
-                {/* Focus Priority */}
-                <FocusPrioritySection form={form} />
-
-                {/* Advanced (City, Custom Prompt, Model) */}
-                <CollapsibleSection title="Advanced" icon={Settings2} testId="section-advanced">
-                  <div className="space-y-3">
                     <FormField
                       control={form.control}
                       name="theme"
