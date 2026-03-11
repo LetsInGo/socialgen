@@ -17,7 +17,7 @@ import {
   Wand2, Download, Copy, Loader2, Sparkles, ChevronDown, ChevronUp,
   Globe, Check, AlertCircle, Crosshair,
   Palette, Settings2, MapPin, FileText, RefreshCw, Zap, Image as ImageIcon,
-  X, Pencil, Type, ArrowUp, ArrowDown, Minus, Plus,
+  X, Pencil, Type, ArrowUp, ArrowDown, Minus, Plus, GripHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -292,6 +292,7 @@ export default function GeneratorPage() {
   const [logoSrc, setLogoSrc] = useState<string | null>(null);
   const [showLogo, setShowLogo] = useState(true);
   const [logoPos, setLogoPos] = useState({ x: 16, y: 16 });
+  const [logoSize, setLogoSize] = useState(48);
 
   // Text overlay
   const [textOverlay, setTextOverlay] = useState("I'm Excited for [Event]");
@@ -299,11 +300,20 @@ export default function GeneratorPage() {
   const [textPos, setTextPos] = useState({ x: 50, y: 50 });
   const [textFontSize, setTextFontSize] = useState(28);
   const [textColor, setTextColor] = useState("#ffffff");
-  const [overlayFont, setOverlayFont] = useState<string | null>(null);
+  const [overlayFont, setOverlayFont] = useState<string>("");
+
+  // Container size (tracked by ResizeObserver for ratio-aware scaling)
+  const [containerWidth, setContainerWidth] = useState(0);
+  const prevContainerWidth = useRef(0);
+
+  // Step 4 Advanced panel
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const previewRef = useRef<HTMLDivElement>(null);
   const logoDragging = useRef(false);
   const logoDragOffset = useRef({ x: 0, y: 0 });
+  const logoResizing = useRef(false);
+  const logoResizeStart = useRef({ x: 0, y: 0, size: 48 });
   const textDragging = useRef(false);
   const textDragOffset = useRef({ x: 0, y: 0 });
 
@@ -347,6 +357,27 @@ export default function GeneratorPage() {
     setActiveStep(activeStep === step ? 0 : step);
   };
 
+  // ResizeObserver: scale logo + font proportionally when ratio changes
+  useEffect(() => {
+    if (!previewRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const newWidth = entry.contentRect.width;
+        if (prevContainerWidth.current > 0 && newWidth > 0 && Math.abs(newWidth - prevContainerWidth.current) > 2) {
+          const scale = newWidth / prevContainerWidth.current;
+          setLogoSize((s) => Math.round(Math.max(16, Math.min(300, s * scale))));
+          setTextFontSize((s) => Math.round(Math.max(8, Math.min(200, s * scale))));
+        }
+        if (newWidth > 0) {
+          prevContainerWidth.current = newWidth;
+          setContainerWidth(newWidth);
+        }
+      }
+    });
+    observer.observe(previewRef.current);
+    return () => observer.disconnect();
+  }, []);
+
   // Logo dragging
   const handleLogoDragStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -357,8 +388,8 @@ export default function GeneratorPage() {
       if (!logoDragging.current || !previewRef.current) return;
       const containerRect = previewRef.current.getBoundingClientRect();
       setLogoPos({
-        x: Math.max(0, Math.min(me.clientX - containerRect.left - logoDragOffset.current.x, containerRect.width - 52)),
-        y: Math.max(0, Math.min(me.clientY - containerRect.top - logoDragOffset.current.y, containerRect.height - 52)),
+        x: Math.max(0, Math.min(me.clientX - containerRect.left - logoDragOffset.current.x, containerRect.width - logoSize)),
+        y: Math.max(0, Math.min(me.clientY - containerRect.top - logoDragOffset.current.y, containerRect.height - logoSize)),
       });
     };
     const onUp = () => {
@@ -368,7 +399,27 @@ export default function GeneratorPage() {
     };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
-  }, []);
+  }, [logoSize]);
+
+  // Logo resize (corner handle)
+  const handleLogoResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    logoResizing.current = true;
+    logoResizeStart.current = { x: e.clientX, y: e.clientY, size: logoSize };
+    const onMove = (me: MouseEvent) => {
+      if (!logoResizing.current) return;
+      const delta = (me.clientX - logoResizeStart.current.x + me.clientY - logoResizeStart.current.y) / 2;
+      setLogoSize(Math.round(Math.max(16, Math.min(300, logoResizeStart.current.size + delta))));
+    };
+    const onUp = () => {
+      logoResizing.current = false;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, [logoSize]);
 
   // Text dragging
   const handleTextDragStart = useCallback((e: React.MouseEvent) => {
@@ -430,9 +481,7 @@ export default function GeneratorPage() {
       const eventName = data.eventName || "Event";
       setTextOverlay(`I'm Excited for ${eventName}`);
       setShowTextOverlay(true);
-      if (data.fontFamily) {
-        setOverlayFont(data.fontFamily);
-      }
+      setOverlayFont(data.fontFamily || "");
 
       toast({
         title: "Website analyzed",
@@ -564,15 +613,37 @@ export default function GeneratorPage() {
       const scaleX = bgImg.width / container.clientWidth;
       const scaleY = bgImg.height / container.clientHeight;
 
+      const canvasWrapText = (text: string, x: number, y: number, maxW: number, lineH: number) => {
+        const words = text.split(" ");
+        let line = "";
+        let curY = y;
+        for (let i = 0; i < words.length; i++) {
+          const test = line + (line ? " " : "") + words[i];
+          if (ctx.measureText(test).width > maxW && line) {
+            ctx.strokeText(line, x, curY);
+            ctx.fillText(line, x, curY);
+            line = words[i];
+            curY += lineH;
+          } else {
+            line = test;
+          }
+        }
+        if (line) {
+          ctx.strokeText(line, x, curY);
+          ctx.fillText(line, x, curY);
+        }
+      };
+
       const doText = () => {
         if (showTextOverlay && textOverlay) {
           const scaledSize = textFontSize * scaleX;
-          ctx.font = `bold ${scaledSize}px ${overlayFont ? `"${overlayFont}", ` : ""}Inter, sans-serif`;
+          const fontStack = overlayFont ? `"${overlayFont}", Inter, sans-serif` : "Inter, sans-serif";
+          ctx.font = `bold ${scaledSize}px ${fontStack}`;
           ctx.fillStyle = textColor;
           ctx.strokeStyle = "rgba(0,0,0,0.6)";
           ctx.lineWidth = scaledSize * 0.08;
-          ctx.strokeText(textOverlay, textPos.x * scaleX, (textPos.y + textFontSize) * scaleY);
-          ctx.fillText(textOverlay, textPos.x * scaleX, (textPos.y + textFontSize) * scaleY);
+          const maxTextWidth = canvas.width * 0.5;
+          canvasWrapText(textOverlay, textPos.x * scaleX, (textPos.y + textFontSize) * scaleY, maxTextWidth, scaledSize * 1.25);
         }
         canvas.toBlob((blob) => {
           if (!blob) return;
@@ -588,7 +659,6 @@ export default function GeneratorPage() {
       if (showLogo && logoSrc) {
         const logoImg = new window.Image();
         logoImg.onload = () => {
-          const logoSize = 48;
           ctx.drawImage(logoImg, logoPos.x * scaleX, logoPos.y * scaleY, logoSize * scaleX, logoSize * scaleY);
           doText();
         };
@@ -598,7 +668,7 @@ export default function GeneratorPage() {
       }
     };
     bgImg.src = `data:${activeResult.mimeType};base64,${activeResult.imageData}`;
-  }, [result, form, showLogo, logoSrc, logoPos, showTextOverlay, textOverlay, textPos, textFontSize, textColor, overlayFont]);
+  }, [result, form, showLogo, logoSrc, logoPos, logoSize, showTextOverlay, textOverlay, textPos, textFontSize, textColor, overlayFont]);
 
   const copyPrompt = useCallback(() => {
     if (!result?.prompt) return;
@@ -695,32 +765,41 @@ export default function GeneratorPage() {
                     className="w-full h-full object-cover"
                     data-testid="img-generated"
                   />
-                  {/* Logo overlay — draggable */}
+                  {/* Logo overlay — draggable + resizable */}
                   {logoSrc && showLogo && (
                     <div
                       data-overlay="logo"
                       className="absolute cursor-grab active:cursor-grabbing group"
-                      style={{ left: logoPos.x, top: logoPos.y }}
+                      style={{ left: logoPos.x, top: logoPos.y, width: logoSize, height: logoSize }}
                       onMouseDown={handleLogoDragStart}
                       data-testid="logo-overlay"
                     >
-                      <img src={logoSrc} alt="Event logo" className="w-12 h-12 object-contain rounded shadow-lg pointer-events-none" draggable={false} />
+                      <img src={logoSrc} alt="Event logo" style={{ width: logoSize, height: logoSize }} className="object-contain rounded shadow-lg pointer-events-none" draggable={false} />
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setShowLogo(false); }}
-                        className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-background/80 border border-border flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-background/80 border border-border flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
                         data-testid="button-remove-logo"
                       >
                         <X className="h-3 w-3" />
                       </button>
+                      {/* Resize handle */}
+                      <div
+                        className="absolute -bottom-1.5 -right-1.5 w-5 h-5 rounded bg-background/80 border border-border flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-se-resize z-10"
+                        onMouseDown={handleLogoResizeStart}
+                        data-testid="logo-resize-handle"
+                        title="Drag to resize"
+                      >
+                        <GripHorizontal className="h-2.5 w-2.5 text-muted-foreground" />
+                      </div>
                     </div>
                   )}
-                  {/* Text overlay — draggable */}
+                  {/* Text overlay — draggable, wraps at 50% */}
                   {showTextOverlay && textOverlay && (
                     <div
                       data-overlay="text"
                       className="absolute cursor-grab active:cursor-grabbing group select-none"
-                      style={{ left: textPos.x, top: textPos.y }}
+                      style={{ left: textPos.x, top: textPos.y, maxWidth: containerWidth > 0 ? containerWidth * 0.5 : "50%" }}
                       onMouseDown={handleTextDragStart}
                       data-testid="text-overlay"
                     >
@@ -731,8 +810,10 @@ export default function GeneratorPage() {
                           fontFamily: overlayFont ? `"${overlayFont}", Inter, sans-serif` : "Inter, sans-serif",
                           textShadow: "0 2px 8px rgba(0,0,0,0.6), 0 1px 2px rgba(0,0,0,0.9)",
                           fontWeight: 700,
-                          lineHeight: 1.15,
-                          whiteSpace: "nowrap",
+                          lineHeight: 1.25,
+                          whiteSpace: "normal",
+                          wordBreak: "break-word",
+                          overflowWrap: "break-word",
                           pointerEvents: "none",
                           userSelect: "none",
                         }}
@@ -1137,9 +1218,16 @@ export default function GeneratorPage() {
                                   </div>
                                 </div>
                               </div>
-                              {overlayFont && (
-                                <p className="text-[10px] text-muted-foreground">Using font: <span className="text-foreground font-medium">{overlayFont}</span> (extracted from site)</p>
-                              )}
+                              <div>
+                                <p className="text-[10px] text-muted-foreground mb-1">Font family</p>
+                                <Input
+                                  value={overlayFont}
+                                  onChange={(e) => setOverlayFont(e.target.value)}
+                                  placeholder="Inter, Roboto, Georgia…"
+                                  className="text-xs h-7 font-mono"
+                                  data-testid="input-overlay-font"
+                                />
+                              </div>
                             </div>
                           </div>
 
@@ -1447,27 +1535,40 @@ export default function GeneratorPage() {
                         )}
                       </Button>
 
-                      {/* Color palette presets */}
+                      {/* Advanced — palette presets */}
                       <div>
-                        <p className="text-[11px] text-muted-foreground mb-1.5">Quick palettes</p>
-                        <div className="grid grid-cols-3 gap-1">
-                          {PRESET_PALETTES.map((p) => (
-                            <button
-                              key={p.name}
-                              type="button"
-                              data-testid={`palette-${p.name.toLowerCase().replace(" ", "-")}`}
-                              onClick={() => applyPalette(p)}
-                              className="flex flex-col items-center gap-1 p-1.5 rounded-md border border-border text-[10px] text-muted-foreground hover:border-primary/40 transition-colors"
-                            >
-                              <div className="flex gap-0.5">
-                                <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.primary }} />
-                                <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.secondary }} />
-                                <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.accent }} />
-                              </div>
-                              <span className="truncate w-full text-center">{p.name}</span>
-                            </button>
-                          ))}
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowAdvanced(!showAdvanced)}
+                          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors w-full py-1"
+                          data-testid="button-toggle-advanced"
+                        >
+                          {showAdvanced ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                          Advanced
+                        </button>
+                        {showAdvanced && (
+                          <div className="mt-2">
+                            <p className="text-[11px] text-muted-foreground mb-1.5">Quick palettes</p>
+                            <div className="grid grid-cols-3 gap-1">
+                              {PRESET_PALETTES.map((p) => (
+                                <button
+                                  key={p.name}
+                                  type="button"
+                                  data-testid={`palette-${p.name.toLowerCase().replace(" ", "-")}`}
+                                  onClick={() => applyPalette(p)}
+                                  className="flex flex-col items-center gap-1 p-1.5 rounded-md border border-border text-[10px] text-muted-foreground hover:border-primary/40 transition-colors"
+                                >
+                                  <div className="flex gap-0.5">
+                                    <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.primary }} />
+                                    <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.secondary }} />
+                                    <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.accent }} />
+                                  </div>
+                                  <span className="truncate w-full text-center">{p.name}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                     </div>
