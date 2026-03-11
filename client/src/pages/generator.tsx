@@ -115,11 +115,7 @@ const FOCUS_OPTIONS = [
   { value: "theme", label: "Theme" },
 ];
 
-const TIER_CONFIG = [
-  { field: "focusPrimary" as const, label: "Primary Focus", desc: "Defines the scene (~60%)" },
-  { field: "focusSecondary" as const, label: "Supporting", desc: "Adds atmosphere (~25%)" },
-  { field: "focusTertiary" as const, label: "Subtle", desc: "Background texture (~15%)" },
-];
+const RANK_LABELS = ["Primary", "Supporting", "Subtle"];
 
 interface GeneratedResult {
   id: number;
@@ -159,60 +155,6 @@ interface ScrapeResult {
 
 type ColorRole = "primary" | "secondary" | "accent";
 
-function FocusTierSelect({ form, tierField, label, desc, testId }: {
-  form: any;
-  tierField: "focusPrimary" | "focusSecondary" | "focusTertiary";
-  label: string;
-  desc: string;
-  testId: string;
-}) {
-  const allTierFields = ["focusPrimary", "focusSecondary", "focusTertiary"] as const;
-  const otherTiers = allTierFields.filter((f) => f !== tierField);
-  const otherValues = otherTiers.flatMap((f) => (form.watch(f) as string[]) || []);
-  const currentValues: string[] = form.watch(tierField) || [];
-
-  const availableOptions = FOCUS_OPTIONS.filter(
-    (opt) => !otherValues.includes(opt.value) || currentValues.includes(opt.value)
-  );
-
-  const toggleOption = (value: string) => {
-    if (currentValues.includes(value)) {
-      form.setValue(tierField, currentValues.filter((v: string) => v !== value));
-    } else {
-      form.setValue(tierField, [...currentValues, value]);
-    }
-  };
-
-  return (
-    <div data-testid={testId}>
-      <p className="text-[11px] font-medium mb-0.5">{label}</p>
-      <p className="text-[10px] text-muted-foreground mb-1.5">{desc}</p>
-      <div className="flex flex-wrap gap-1">
-        {availableOptions.map((opt) => {
-          const selected = currentValues.includes(opt.value);
-          return (
-            <Badge
-              key={opt.value}
-              variant={selected ? "default" : "outline"}
-              className={cn(
-                "text-[10px] h-6 cursor-pointer select-none transition-all",
-                selected ? "ring-1 ring-primary/30" : "opacity-60 hover:opacity-100"
-              )}
-              onClick={() => toggleOption(opt.value)}
-              data-testid={`focus-option-${tierField}-${opt.value}`}
-            >
-              {selected && <Check className="h-2.5 w-2.5 mr-0.5" />}
-              {opt.label}
-            </Badge>
-          );
-        })}
-        {availableOptions.length === 0 && (
-          <span className="text-[10px] text-muted-foreground/40 italic">All options assigned to other tiers</span>
-        )}
-      </div>
-    </div>
-  );
-}
 
 function StepHeader({
   stepNum,
@@ -308,6 +250,26 @@ export default function GeneratorPage() {
 
   // Step 4 Advanced panel
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // Simplified focus ranking (click order = priority)
+  const [rankedFocus, setRankedFocus] = useState<string[]>(["industry"]);
+  const updateRankedFocus = (ranked: string[]) => {
+    setRankedFocus(ranked);
+    form.setValue("focusPrimary", ranked[0] ? [ranked[0]] : ["industry"]);
+    form.setValue("focusSecondary", ranked[1] ? [ranked[1]] : []);
+    form.setValue("focusTertiary", ranked[2] ? [ranked[2]] : []);
+  };
+  const toggleFocusItem = (value: string) => {
+    setRankedFocus((prev) => {
+      const next = prev.includes(value)
+        ? prev.filter((v) => v !== value)
+        : prev.length < 3 ? [...prev, value] : prev;
+      form.setValue("focusPrimary", next[0] ? [next[0]] : ["industry"]);
+      form.setValue("focusSecondary", next[1] ? [next[1]] : []);
+      form.setValue("focusTertiary", next[2] ? [next[2]] : []);
+      return next;
+    });
+  };
 
   const previewRef = useRef<HTMLDivElement>(null);
   const logoDragging = useRef(false);
@@ -474,9 +436,8 @@ export default function GeneratorPage() {
       form.setValue("venue", data.venue || "");
       form.setValue("theme", data.theme || "");
       form.setValue("customPrompt", data.customPrompt || "");
-      form.setValue("focusPrimary", ["industry"]);
-      form.setValue("focusSecondary", data.theme ? ["theme"] : []);
-      form.setValue("focusTertiary", []);
+      const initRanked = ["industry", ...(data.theme ? ["theme"] : [])];
+      updateRankedFocus(initRanked);
 
       const eventName = data.eventName || "Event";
       setTextOverlay(`I'm Excited for ${eventName}`);
@@ -1383,23 +1344,44 @@ export default function GeneratorPage() {
                   {activeStep === 3 && (
                     <div className="px-4 pb-4 border-t border-border pt-4 space-y-4">
 
-                      {/* Focus Priority */}
+                      {/* Focus Priority — simplified ranked picker */}
                       <div>
-                        <div className="flex items-center gap-2 mb-3">
+                        <div className="flex items-center gap-2 mb-1.5">
                           <Crosshair className="h-3.5 w-3.5 text-muted-foreground" />
                           <p className="text-xs font-semibold">Focus Priority</p>
                         </div>
-                        <div className="space-y-3">
-                          {TIER_CONFIG.map((tier) => (
-                            <FocusTierSelect
-                              key={tier.field}
-                              form={form}
-                              tierField={tier.field}
-                              label={tier.label}
-                              desc={tier.desc}
-                              testId={`tier-${tier.field}`}
-                            />
-                          ))}
+                        <p className="text-[10px] text-muted-foreground mb-3">Click to select up to 3. First selected = primary focus.</p>
+                        <div className="flex flex-wrap gap-2" data-testid="focus-ranked-picker">
+                          {FOCUS_OPTIONS.map((opt) => {
+                            const rank = rankedFocus.indexOf(opt.value);
+                            const selected = rank !== -1;
+                            return (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => toggleFocusItem(opt.value)}
+                                data-testid={`focus-option-${opt.value}`}
+                                className={cn(
+                                  "flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border text-xs font-medium transition-all select-none",
+                                  selected
+                                    ? "border-primary bg-primary/10 text-foreground"
+                                    : rankedFocus.length >= 3
+                                    ? "border-border text-muted-foreground/40 cursor-not-allowed"
+                                    : "border-border text-muted-foreground hover:border-muted-foreground/60 hover:text-foreground"
+                                )}
+                              >
+                                {selected && (
+                                  <span className="w-4 h-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center shrink-0">
+                                    {rank + 1}
+                                  </span>
+                                )}
+                                {opt.label}
+                                {selected && (
+                                  <span className="text-[9px] text-muted-foreground ml-0.5">{RANK_LABELS[rank]}</span>
+                                )}
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
 
@@ -1580,6 +1562,34 @@ export default function GeneratorPage() {
           </div>
         </div>
       </div>
+
+      {/* Sticky Regenerate bar — visible after first generation */}
+      {result && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 flex justify-center pb-5 pointer-events-none">
+          <div className="pointer-events-auto flex items-center gap-3 px-4 py-2.5 rounded-full border border-border bg-background/80 backdrop-blur-md shadow-lg">
+            <Button
+              type="button"
+              size="sm"
+              className="h-9 px-5 text-sm font-semibold rounded-full"
+              disabled={mutation.isPending}
+              onClick={() => form.handleSubmit(onSubmit)()}
+              data-testid="button-sticky-regenerate"
+            >
+              {mutation.isPending ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Regenerate
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
