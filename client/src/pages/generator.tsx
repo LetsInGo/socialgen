@@ -115,7 +115,6 @@ const FOCUS_OPTIONS = [
   { value: "theme", label: "Theme" },
 ];
 
-const RANK_LABELS = ["Primary", "Supporting", "Subtle"];
 
 interface GeneratedResult {
   id: number;
@@ -251,25 +250,18 @@ export default function GeneratorPage() {
   // Step 4 Advanced panel
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  // Simplified focus ranking (click order = priority)
-  const [rankedFocus, setRankedFocus] = useState<string[]>(["industry"]);
-  const updateRankedFocus = (ranked: string[]) => {
-    setRankedFocus(ranked);
-    form.setValue("focusPrimary", ranked[0] ? [ranked[0]] : ["industry"]);
-    form.setValue("focusSecondary", ranked[1] ? [ranked[1]] : []);
-    form.setValue("focusTertiary", ranked[2] ? [ranked[2]] : []);
+  // Focus tier dropdowns (Primary / Supporting / Subtle)
+  const [focusLvl1, setFocusLvl1] = useState("industry");
+  const [focusLvl2, setFocusLvl2] = useState("none");
+  const [focusLvl3, setFocusLvl3] = useState("none");
+  const setFocusTier = (tier: 1 | 2 | 3, value: string) => {
+    if (tier === 1) { setFocusLvl1(value); form.setValue("focusPrimary", [value]); }
+    if (tier === 2) { setFocusLvl2(value); form.setValue("focusSecondary", value === "none" ? [] : [value]); }
+    if (tier === 3) { setFocusLvl3(value); form.setValue("focusTertiary", value === "none" ? [] : [value]); }
   };
-  const toggleFocusItem = (value: string) => {
-    setRankedFocus((prev) => {
-      const next = prev.includes(value)
-        ? prev.filter((v) => v !== value)
-        : prev.length < 3 ? [...prev, value] : prev;
-      form.setValue("focusPrimary", next[0] ? [next[0]] : ["industry"]);
-      form.setValue("focusSecondary", next[1] ? [next[1]] : []);
-      form.setValue("focusTertiary", next[2] ? [next[2]] : []);
-      return next;
-    });
-  };
+
+  // Detected-color assignment
+  const [assigningColor, setAssigningColor] = useState<string | null>(null);
 
   const previewRef = useRef<HTMLDivElement>(null);
   const logoDragging = useRef(false);
@@ -436,8 +428,13 @@ export default function GeneratorPage() {
       form.setValue("venue", data.venue || "");
       form.setValue("theme", data.theme || "");
       form.setValue("customPrompt", data.customPrompt || "");
-      const initRanked = ["industry", ...(data.theme ? ["theme"] : [])];
-      updateRankedFocus(initRanked);
+      setFocusLvl1("industry");
+      const lvl2 = data.theme ? "theme" : "none";
+      setFocusLvl2(lvl2);
+      setFocusLvl3("none");
+      form.setValue("focusPrimary", ["industry"]);
+      form.setValue("focusSecondary", lvl2 === "none" ? [] : [lvl2]);
+      form.setValue("focusTertiary", []);
 
       const eventName = data.eventName || "Event";
       setTextOverlay(`I'm Excited for ${eventName}`);
@@ -978,20 +975,49 @@ export default function GeneratorPage() {
                             {/* All detected colors swatches */}
                             {scrapeResult.allColors && scrapeResult.allColors.length > 0 && (
                               <div className="mb-3">
-                                <p className="text-[10px] text-muted-foreground mb-1.5">All detected colors — click to assign</p>
+                                <p className="text-[10px] text-muted-foreground mb-1.5">Detected colors — click a swatch to reassign</p>
                                 <div className="flex flex-wrap gap-1.5">
                                   {scrapeResult.allColors.map((c, i) => (
-                                    <div key={i} className="relative group">
-                                      <button
-                                        type="button"
-                                        className="w-7 h-7 rounded border border-border hover:scale-110 transition-transform"
-                                        style={{ backgroundColor: c.hex }}
-                                        title={c.hex}
-                                        data-testid={`detected-color-${i}`}
-                                      />
-                                    </div>
+                                    <button
+                                      key={i}
+                                      type="button"
+                                      className={cn(
+                                        "w-7 h-7 rounded border-2 transition-all",
+                                        assigningColor === c.hex
+                                          ? "border-primary ring-2 ring-primary/40 scale-110"
+                                          : "border-transparent hover:border-border hover:scale-105"
+                                      )}
+                                      style={{ backgroundColor: c.hex }}
+                                      title={c.hex}
+                                      data-testid={`detected-color-${i}`}
+                                      onClick={() => setAssigningColor(assigningColor === c.hex ? null : c.hex)}
+                                    />
                                   ))}
                                 </div>
+                                {assigningColor && (
+                                  <div className="mt-2 flex items-center gap-2 px-2.5 py-2 rounded-md bg-muted/50 border border-border">
+                                    <div className="w-4 h-4 rounded flex-shrink-0 border border-border" style={{ backgroundColor: assigningColor }} />
+                                    <span className="text-[10px] text-muted-foreground">Assign to:</span>
+                                    {[
+                                      { key: "primaryColor", label: "Primary" },
+                                      { key: "secondaryColor", label: "Secondary" },
+                                      { key: "accentColor", label: "Accent" },
+                                    ].map(({ key, label }) => (
+                                      <button
+                                        key={key}
+                                        type="button"
+                                        data-testid={`assign-color-${key}`}
+                                        onClick={() => { form.setValue(key as any, assigningColor); setAssigningColor(null); }}
+                                        className="text-[10px] px-2 py-0.5 rounded border border-border hover:border-primary hover:bg-primary/10 text-muted-foreground hover:text-foreground transition-colors"
+                                      >
+                                        {label}
+                                      </button>
+                                    ))}
+                                    <button type="button" onClick={() => setAssigningColor(null)} className="ml-auto text-muted-foreground hover:text-foreground">
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             )}
 
@@ -1344,42 +1370,41 @@ export default function GeneratorPage() {
                   {activeStep === 3 && (
                     <div className="px-4 pb-4 border-t border-border pt-4 space-y-4">
 
-                      {/* Focus Priority — simplified ranked picker */}
+                      {/* Focus Priority — three-level dropdowns */}
                       <div>
-                        <div className="flex items-center gap-2 mb-1.5">
+                        <div className="flex items-center gap-2 mb-3">
                           <Crosshair className="h-3.5 w-3.5 text-muted-foreground" />
                           <p className="text-xs font-semibold">Focus Priority</p>
                         </div>
-                        <p className="text-[10px] text-muted-foreground mb-3">Click to select up to 3. First selected = primary focus.</p>
-                        <div className="flex flex-wrap gap-2" data-testid="focus-ranked-picker">
-                          {FOCUS_OPTIONS.map((opt) => {
-                            const rank = rankedFocus.indexOf(opt.value);
-                            const selected = rank !== -1;
+                        <div className="space-y-2" data-testid="focus-tier-selects">
+                          {([
+                            { tier: 1 as const, label: "Primary", desc: "Drives the scene (~60%)", value: focusLvl1, required: true },
+                            { tier: 2 as const, label: "Supporting", desc: "Adds atmosphere (~25%)", value: focusLvl2, required: false },
+                            { tier: 3 as const, label: "Subtle", desc: "Background texture (~15%)", value: focusLvl3, required: false },
+                          ]).map(({ tier, label, desc, value, required }) => {
+                            const otherVals = [focusLvl1, focusLvl2, focusLvl3].filter((_, i) => i + 1 !== tier);
+                            const available = FOCUS_OPTIONS.filter((o) => !otherVals.includes(o.value));
                             return (
-                              <button
-                                key={opt.value}
-                                type="button"
-                                onClick={() => toggleFocusItem(opt.value)}
-                                data-testid={`focus-option-${opt.value}`}
-                                className={cn(
-                                  "flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border text-xs font-medium transition-all select-none",
-                                  selected
-                                    ? "border-primary bg-primary/10 text-foreground"
-                                    : rankedFocus.length >= 3
-                                    ? "border-border text-muted-foreground/40 cursor-not-allowed"
-                                    : "border-border text-muted-foreground hover:border-muted-foreground/60 hover:text-foreground"
-                                )}
-                              >
-                                {selected && (
-                                  <span className="w-4 h-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center shrink-0">
-                                    {rank + 1}
-                                  </span>
-                                )}
-                                {opt.label}
-                                {selected && (
-                                  <span className="text-[9px] text-muted-foreground ml-0.5">{RANK_LABELS[rank]}</span>
-                                )}
-                              </button>
+                              <div key={tier} className="flex items-center gap-2">
+                                <div className="w-16 shrink-0">
+                                  <p className="text-[11px] font-medium">{label}</p>
+                                  <p className="text-[9px] text-muted-foreground">{desc}</p>
+                                </div>
+                                <Select
+                                  value={value}
+                                  onValueChange={(v) => setFocusTier(tier, v)}
+                                >
+                                  <SelectTrigger className="h-8 text-xs flex-1" data-testid={`focus-tier-${tier}`}>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {!required && <SelectItem value="none">— None —</SelectItem>}
+                                    {available.map((opt) => (
+                                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
                             );
                           })}
                         </div>
