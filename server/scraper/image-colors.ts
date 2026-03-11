@@ -145,10 +145,15 @@ export async function extractKeyImages(
         if (resp.ok) {
           let contentType = (resp.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
           if (contentType === "image/jpg") contentType = "image/jpeg";
+          // SVG is only accepted for logo/favicon sources (used as UI overlay, not sent to Gemini)
+          const logoSources = new Set(["logo", "apple-touch-icon", "favicon"]);
+          const isLogoSource = logoSources.has(imgInfo.source);
           const supportedTypes = ["image/png", "image/jpeg", "image/gif", "image/webp"];
-          if (supportedTypes.includes(contentType)) {
+          const allTypes = [...supportedTypes, ...(isLogoSource ? ["image/svg+xml"] : [])];
+          if (allTypes.includes(contentType)) {
             const buffer = Buffer.from(await resp.arrayBuffer());
-            if (buffer.length > 100 && buffer.length < 5_000_000) {
+            const maxSize = contentType === "image/svg+xml" ? 500_000 : 5_000_000;
+            if (buffer.length > 10 && buffer.length < maxSize) {
               images.push({
                 base64: buffer.toString("base64"),
                 mimeType: contentType,

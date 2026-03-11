@@ -256,6 +256,8 @@ Page text (first 3000 chars): ${domResult.metadata.bodyText.slice(0, 3000)}`;
         const parts: any[] = [];
 
         for (const img of keyImages) {
+          // SVG is not supported by Gemini vision — skip it (it's only used as a UI overlay)
+          if (img.mimeType === "image/svg+xml") continue;
           parts.push({
             inlineData: {
               mimeType: img.mimeType,
