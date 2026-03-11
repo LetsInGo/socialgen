@@ -15,9 +15,9 @@ import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import {
   Wand2, Download, Copy, Loader2, Sparkles, ChevronDown, ChevronUp,
-  Globe, Check, ArrowUp, ArrowDown, AlertCircle, Crosshair,
+  Globe, Check, AlertCircle, Crosshair,
   Palette, Settings2, MapPin, FileText, RefreshCw, Zap, Image as ImageIcon,
-  X, Pencil,
+  X, Pencil, Type, ArrowUp, ArrowDown, Minus, Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -39,12 +39,48 @@ const ASPECT_RATIOS = [
 ];
 
 const STYLES = [
-  { value: "photorealistic", label: "Photo" },
-  { value: "illustration", label: "Illustration" },
-  { value: "abstract", label: "Abstract" },
-  { value: "minimalist", label: "Minimal" },
-  { value: "gradient", label: "Gradient" },
-  { value: "editorial", label: "Editorial" },
+  {
+    value: "photorealistic",
+    label: "Photorealistic",
+    desc: "Real-world photography feel",
+    gradient: "from-sky-900 to-blue-800",
+    accent: "#0ea5e9",
+  },
+  {
+    value: "illustration",
+    label: "Illustration",
+    desc: "Hand-drawn artistic style",
+    gradient: "from-emerald-800 to-teal-700",
+    accent: "#10b981",
+  },
+  {
+    value: "abstract",
+    label: "Abstract",
+    desc: "Non-representational shapes",
+    gradient: "from-violet-900 to-purple-800",
+    accent: "#8b5cf6",
+  },
+  {
+    value: "minimalist",
+    label: "Minimalist",
+    desc: "Clean, simple, lots of space",
+    gradient: "from-slate-800 to-gray-700",
+    accent: "#94a3b8",
+  },
+  {
+    value: "gradient",
+    label: "Gradient",
+    desc: "Smooth color transitions",
+    gradient: "from-rose-800 to-pink-700",
+    accent: "#f43f5e",
+  },
+  {
+    value: "editorial",
+    label: "Editorial",
+    desc: "Bold magazine-style layouts",
+    gradient: "from-amber-900 to-orange-800",
+    accent: "#f97316",
+  },
 ];
 
 const MODELS = [
@@ -80,9 +116,9 @@ const FOCUS_OPTIONS = [
 ];
 
 const TIER_CONFIG = [
-  { field: "focusPrimary" as const, label: "Primary Focus", desc: "Defines the scene" },
-  { field: "focusSecondary" as const, label: "Supporting", desc: "Adds atmosphere" },
-  { field: "focusTertiary" as const, label: "Subtle", desc: "Background texture" },
+  { field: "focusPrimary" as const, label: "Primary Focus", desc: "Defines the scene (~60%)" },
+  { field: "focusSecondary" as const, label: "Supporting", desc: "Adds atmosphere (~25%)" },
+  { field: "focusTertiary" as const, label: "Subtle", desc: "Background texture (~15%)" },
 ];
 
 interface GeneratedResult {
@@ -118,42 +154,10 @@ interface ScrapeResult {
   screenshot?: string;
   logo?: { base64: string; mimeType: string } | null;
   allColors?: ScrapeColorInfo[];
+  fontFamily?: string | null;
 }
 
 type ColorRole = "primary" | "secondary" | "accent";
-
-function CollapsibleSection({
-  title,
-  icon: Icon,
-  defaultOpen = false,
-  children,
-  testId,
-}: {
-  title: string;
-  icon: any;
-  defaultOpen?: boolean;
-  children: React.ReactNode;
-  testId: string;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="border border-border rounded-lg overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-3 py-2.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
-        data-testid={testId}
-      >
-        <span className="flex items-center gap-2">
-          <Icon className="h-3.5 w-3.5" />
-          {title}
-        </span>
-        {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-      </button>
-      {open && <div className="px-3 pb-3 border-t border-border pt-3">{children}</div>}
-    </div>
-  );
-}
 
 function FocusTierSelect({ form, tierField, label, desc, testId }: {
   form: any;
@@ -181,8 +185,8 @@ function FocusTierSelect({ form, tierField, label, desc, testId }: {
 
   return (
     <div data-testid={testId}>
-      <p className="text-[11px] font-medium mb-1">{label}</p>
-      <p className="text-[9px] text-muted-foreground mb-1.5">{desc}</p>
+      <p className="text-[11px] font-medium mb-0.5">{label}</p>
+      <p className="text-[10px] text-muted-foreground mb-1.5">{desc}</p>
       <div className="flex flex-wrap gap-1">
         {availableOptions.map((opt) => {
           const selected = currentValues.includes(opt.value);
@@ -210,49 +214,98 @@ function FocusTierSelect({ form, tierField, label, desc, testId }: {
   );
 }
 
+function StepHeader({
+  stepNum,
+  title,
+  subtitle,
+  isComplete,
+  isActive,
+  isLocked,
+  onClick,
+}: {
+  stepNum: number;
+  title: string;
+  subtitle?: string;
+  isComplete: boolean;
+  isActive: boolean;
+  isLocked: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={isLocked}
+      className={cn(
+        "w-full flex items-center gap-3 px-4 py-3 text-left transition-colors rounded-t-lg",
+        isActive ? "bg-muted/40" : "hover:bg-muted/20",
+        isLocked && "opacity-40 cursor-not-allowed"
+      )}
+      data-testid={`step-header-${stepNum}`}
+    >
+      <div className={cn(
+        "flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors",
+        isComplete ? "bg-primary text-primary-foreground" :
+        isActive ? "bg-primary/20 text-primary border-2 border-primary" :
+        "bg-muted text-muted-foreground border-2 border-border"
+      )}>
+        {isComplete ? <Check className="h-3.5 w-3.5" /> : stepNum}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className={cn(
+          "text-sm font-semibold",
+          isActive ? "text-foreground" : isComplete ? "text-foreground" : "text-muted-foreground"
+        )}>{title}</p>
+        {subtitle && (
+          <p className="text-[11px] text-muted-foreground truncate">{subtitle}</p>
+        )}
+      </div>
+      {!isLocked && (
+        isActive ? <ChevronUp className="h-4 w-4 text-muted-foreground flex-shrink-0" /> :
+        <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+      )}
+    </button>
+  );
+}
+
 export default function GeneratorPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Step state: 1=extraction, 2=style, 3=focus, 4=generate
+  const [activeStep, setActiveStep] = useState(1);
+  const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
+
+  // Preview & result
   const [result, setResult] = useState<GeneratedResult | null>(null);
+  const [previewResult, setPreviewResult] = useState<GeneratedResult | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
+  const [generatedWithModel, setGeneratedWithModel] = useState<string | null>(null);
+
+  // Extraction
   const [eventUrl, setEventUrl] = useState("");
   const [scrapeResult, setScrapeResult] = useState<ScrapeResult | null>(null);
   const [scrapeError, setScrapeError] = useState<string | null>(null);
-  const [generationError, setGenerationError] = useState<string | null>(null);
-  const [showColorDetails, setShowColorDetails] = useState(false);
-  const [showPresets, setShowPresets] = useState(true);
-  const [generatedWithModel, setGeneratedWithModel] = useState<string | null>(null);
-  const [showUrlInput, setShowUrlInput] = useState(true);
+
+  // Logo overlay
   const [logoSrc, setLogoSrc] = useState<string | null>(null);
   const [showLogo, setShowLogo] = useState(true);
   const [logoPos, setLogoPos] = useState({ x: 16, y: 16 });
-  const previewRef = useRef<HTMLDivElement>(null);
-  const dragging = useRef(false);
-  const dragOffset = useRef({ x: 0, y: 0 });
 
-  const handleLogoDragStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    dragging.current = true;
-    const rect = (e.target as HTMLElement).getBoundingClientRect();
-    dragOffset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-    const onMove = (me: MouseEvent) => {
-      if (!dragging.current || !previewRef.current) return;
-      const containerRect = previewRef.current.getBoundingClientRect();
-      const newX = me.clientX - containerRect.left - dragOffset.current.x;
-      const newY = me.clientY - containerRect.top - dragOffset.current.y;
-      setLogoPos({
-        x: Math.max(0, Math.min(newX, containerRect.width - 48)),
-        y: Math.max(0, Math.min(newY, containerRect.height - 48)),
-      });
-    };
-    const onUp = () => {
-      dragging.current = false;
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-  }, []);
+  // Text overlay
+  const [textOverlay, setTextOverlay] = useState("I'm Excited for [Event]");
+  const [showTextOverlay, setShowTextOverlay] = useState(false);
+  const [textPos, setTextPos] = useState({ x: 50, y: 50 });
+  const [textFontSize, setTextFontSize] = useState(28);
+  const [textColor, setTextColor] = useState("#ffffff");
+  const [overlayFont, setOverlayFont] = useState<string | null>(null);
+
+  const previewRef = useRef<HTMLDivElement>(null);
+  const logoDragging = useRef(false);
+  const logoDragOffset = useRef({ x: 0, y: 0 });
+  const textDragging = useRef(false);
+  const textDragOffset = useRef({ x: 0, y: 0 });
 
   const form = useForm<ImageGenerationConfig>({
     resolver: zodResolver(imageGenerationConfigSchema),
@@ -275,6 +328,71 @@ export default function GeneratorPage() {
     },
   });
 
+  const selectedRatio = form.watch("aspectRatio");
+
+  const colorFields: { role: ColorRole; label: string; colorKey: keyof ImageGenerationConfig; testIdColor: string; testIdInput: string; defaultFallback: string }[] = [
+    { role: "primary", label: "Primary", colorKey: "primaryColor", testIdColor: "color-primary", testIdInput: "input-primary-color", defaultFallback: "#0A84FF" },
+    { role: "secondary", label: "Secondary", colorKey: "secondaryColor", testIdColor: "color-secondary", testIdInput: "input-secondary-color", defaultFallback: "#000000" },
+    { role: "accent", label: "Accent", colorKey: "accentColor", testIdColor: "color-accent", testIdInput: "input-accent-color", defaultFallback: "#ffffff" },
+  ];
+
+  const completeStep = (step: number) => {
+    setCompletedSteps((prev) => new Set([...prev, step]));
+  };
+
+  const goToStep = (step: number) => {
+    if (step > 1 && !completedSteps.has(1)) return;
+    if (step > 2 && !completedSteps.has(2)) return;
+    if (step > 3 && !completedSteps.has(3)) return;
+    setActiveStep(activeStep === step ? 0 : step);
+  };
+
+  // Logo dragging
+  const handleLogoDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    logoDragging.current = true;
+    const rect = (e.target as HTMLElement).closest("[data-overlay]")!.getBoundingClientRect();
+    logoDragOffset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    const onMove = (me: MouseEvent) => {
+      if (!logoDragging.current || !previewRef.current) return;
+      const containerRect = previewRef.current.getBoundingClientRect();
+      setLogoPos({
+        x: Math.max(0, Math.min(me.clientX - containerRect.left - logoDragOffset.current.x, containerRect.width - 52)),
+        y: Math.max(0, Math.min(me.clientY - containerRect.top - logoDragOffset.current.y, containerRect.height - 52)),
+      });
+    };
+    const onUp = () => {
+      logoDragging.current = false;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, []);
+
+  // Text dragging
+  const handleTextDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    textDragging.current = true;
+    const rect = (e.target as HTMLElement).closest("[data-overlay]")!.getBoundingClientRect();
+    textDragOffset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    const onMove = (me: MouseEvent) => {
+      if (!textDragging.current || !previewRef.current) return;
+      const containerRect = previewRef.current.getBoundingClientRect();
+      setTextPos({
+        x: Math.max(0, Math.min(me.clientX - containerRect.left - textDragOffset.current.x, containerRect.width - 100)),
+        y: Math.max(0, Math.min(me.clientY - containerRect.top - textDragOffset.current.y, containerRect.height - 40)),
+      });
+    };
+    const onUp = () => {
+      textDragging.current = false;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, []);
+
   const scrapeMutation = useMutation({
     mutationFn: async (url: string) => {
       const res = await fetch("/api/scrape-event", {
@@ -289,7 +407,6 @@ export default function GeneratorPage() {
     onSuccess: (data) => {
       setScrapeResult(data);
       setScrapeError(null);
-      setShowUrlInput(false);
       if (data.logo) {
         setLogoSrc(`data:${data.logo.mimeType};base64,${data.logo.base64}`);
         setShowLogo(true);
@@ -306,10 +423,17 @@ export default function GeneratorPage() {
       form.setValue("venue", data.venue || "");
       form.setValue("theme", data.theme || "");
       form.setValue("customPrompt", data.customPrompt || "");
-      setShowPresets(false);
       form.setValue("focusPrimary", ["industry"]);
       form.setValue("focusSecondary", data.theme ? ["theme"] : []);
       form.setValue("focusTertiary", []);
+
+      const eventName = data.eventName || "Event";
+      setTextOverlay(`I'm Excited for ${eventName}`);
+      setShowTextOverlay(true);
+      if (data.fontFamily) {
+        setOverlayFont(data.fontFamily);
+      }
+
       toast({
         title: "Website analyzed",
         description: data.eventName
@@ -322,13 +446,49 @@ export default function GeneratorPage() {
     },
   });
 
-  const handleScrape = () => {
+  // Preview generation (Step 1 auto-generate using header graphic focus)
+  const previewMutation = useMutation({
+    mutationFn: async (data: ImageGenerationConfig) => {
+      const res = await apiRequest("POST", "/api/generate", data);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setPreviewResult(data);
+    },
+    onError: () => {},
+  });
+
+  const handleScrapeAndPreview = () => {
     if (!eventUrl.trim()) {
       setScrapeError("Enter a URL first");
       return;
     }
     setScrapeError(null);
     scrapeMutation.mutate(eventUrl.trim());
+  };
+
+  // After scrape succeeds, auto-generate a quick preview
+  useEffect(() => {
+    if (scrapeResult && !previewMutation.isPending && !previewResult) {
+      const config = form.getValues();
+      const previewConfig = { ...config, focusPrimary: ["graphic"], focusSecondary: ["industry"], focusTertiary: [], model: "gemini-2.5-flash-image" };
+      previewMutation.mutate(previewConfig);
+    }
+  }, [scrapeResult]);
+
+  const handleCompleteStep1 = () => {
+    completeStep(1);
+    setActiveStep(2);
+  };
+
+  const handleCompleteStep2 = () => {
+    completeStep(2);
+    setActiveStep(3);
+  };
+
+  const handleCompleteStep3 = () => {
+    completeStep(3);
+    setActiveStep(4);
   };
 
   const mutation = useMutation({
@@ -341,6 +501,7 @@ export default function GeneratorPage() {
       setGenerationError(null);
       setGeneratedWithModel(form.getValues("model"));
       queryClient.invalidateQueries({ queryKey: ["/api/history"] });
+      completeStep(4);
     },
     onError: (error: any) => {
       setGenerationError(error.message || "Something went wrong. Please try again.");
@@ -382,11 +543,13 @@ export default function GeneratorPage() {
 
   const downloadImage = useCallback(() => {
     if (!result) return;
-    if (!showLogo || !logoSrc || !previewRef.current) {
+    const activeResult = result;
+    const hasOverlays = (showLogo && logoSrc) || showTextOverlay;
+    if (!hasOverlays || !previewRef.current) {
       const link = document.createElement("a");
-      link.href = `data:${result.mimeType};base64,${result.imageData}`;
+      link.href = `data:${activeResult.mimeType};base64,${activeResult.imageData}`;
       const ratio = form.getValues("aspectRatio").replace(":", "x");
-      link.download = `nanabana-${ratio}-${result.id}.png`;
+      link.download = `nanabana-${ratio}-${activeResult.id}.png`;
       link.click();
       return;
     }
@@ -397,31 +560,45 @@ export default function GeneratorPage() {
       canvas.height = bgImg.height;
       const ctx = canvas.getContext("2d")!;
       ctx.drawImage(bgImg, 0, 0);
-      const logoImg = new window.Image();
-      logoImg.onload = () => {
-        const container = previewRef.current!;
-        const scaleX = bgImg.width / container.clientWidth;
-        const scaleY = bgImg.height / container.clientHeight;
-        const logoSize = 48;
-        const drawX = logoPos.x * scaleX;
-        const drawY = logoPos.y * scaleY;
-        const drawW = logoSize * scaleX;
-        const drawH = logoSize * scaleY;
-        ctx.drawImage(logoImg, drawX, drawY, drawW, drawH);
+      const container = previewRef.current!;
+      const scaleX = bgImg.width / container.clientWidth;
+      const scaleY = bgImg.height / container.clientHeight;
+
+      const doText = () => {
+        if (showTextOverlay && textOverlay) {
+          const scaledSize = textFontSize * scaleX;
+          ctx.font = `bold ${scaledSize}px ${overlayFont ? `"${overlayFont}", ` : ""}Inter, sans-serif`;
+          ctx.fillStyle = textColor;
+          ctx.strokeStyle = "rgba(0,0,0,0.6)";
+          ctx.lineWidth = scaledSize * 0.08;
+          ctx.strokeText(textOverlay, textPos.x * scaleX, (textPos.y + textFontSize) * scaleY);
+          ctx.fillText(textOverlay, textPos.x * scaleX, (textPos.y + textFontSize) * scaleY);
+        }
         canvas.toBlob((blob) => {
           if (!blob) return;
           const link = document.createElement("a");
           link.href = URL.createObjectURL(blob);
           const ratio = form.getValues("aspectRatio").replace(":", "x");
-          link.download = `nanabana-${ratio}-${result.id}.png`;
+          link.download = `nanabana-${ratio}-${activeResult.id}.png`;
           link.click();
           URL.revokeObjectURL(link.href);
         }, "image/png");
       };
-      logoImg.src = logoSrc;
+
+      if (showLogo && logoSrc) {
+        const logoImg = new window.Image();
+        logoImg.onload = () => {
+          const logoSize = 48;
+          ctx.drawImage(logoImg, logoPos.x * scaleX, logoPos.y * scaleY, logoSize * scaleX, logoSize * scaleY);
+          doText();
+        };
+        logoImg.src = logoSrc;
+      } else {
+        doText();
+      }
     };
-    bgImg.src = `data:${result.mimeType};base64,${result.imageData}`;
-  }, [result, form, showLogo, logoSrc, logoPos]);
+    bgImg.src = `data:${activeResult.mimeType};base64,${activeResult.imageData}`;
+  }, [result, form, showLogo, logoSrc, logoPos, showTextOverlay, textOverlay, textPos, textFontSize, textColor, overlayFont]);
 
   const copyPrompt = useCallback(() => {
     if (!result?.prompt) return;
@@ -429,38 +606,40 @@ export default function GeneratorPage() {
     toast({ title: "Prompt copied to clipboard" });
   }, [result, toast]);
 
-  const selectedRatio = form.watch("aspectRatio");
+  const displayResult = result || previewResult;
 
-  const colorFields: { role: ColorRole; label: string; colorKey: keyof ImageGenerationConfig; testIdColor: string; testIdInput: string; defaultFallback: string }[] = [
-    { role: "primary", label: "Primary", colorKey: "primaryColor", testIdColor: "color-primary", testIdInput: "input-primary-color", defaultFallback: "#0A84FF" },
-    { role: "secondary", label: "Secondary", colorKey: "secondaryColor", testIdColor: "color-secondary", testIdInput: "input-secondary-color", defaultFallback: "#000000" },
-    { role: "accent", label: "Accent", colorKey: "accentColor", testIdColor: "color-accent", testIdInput: "input-accent-color", defaultFallback: "#ffffff" },
-  ];
+  // Step 1 completion subtitle
+  const step1Subtitle = scrapeResult
+    ? scrapeResult.eventName || "Website analyzed"
+    : undefined;
+
+  // Step 2 completion subtitle
+  const currentStyle = form.watch("style");
+  const styleObj = STYLES.find((s) => s.value === currentStyle);
+  const step2Subtitle = completedSteps.has(2) ? styleObj?.label : undefined;
 
   return (
     <div className="min-h-full bg-background">
       <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_400px] gap-6">
 
-          {/* ===== PREVIEW PANEL (LEFT — HERO) ===== */}
+          {/* ===== PREVIEW PANEL (LEFT) ===== */}
           <div className="space-y-3 order-2 xl:order-1">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-lg font-bold tracking-tight" data-testid="text-page-title">Generate Background</h1>
-                <p className="text-xs text-muted-foreground">AI-powered social media backgrounds</p>
+                <h1 className="text-lg font-bold tracking-tight" data-testid="text-page-title">Nano Banana Studio</h1>
+                <p className="text-xs text-muted-foreground">Social media background generator</p>
               </div>
-              {result && (
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={downloadImage}
-                    data-testid="button-download"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    Download
-                  </Button>
-                </div>
+              {displayResult && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={downloadImage}
+                  data-testid="button-download"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Download
+                </Button>
               )}
             </div>
 
@@ -474,13 +653,13 @@ export default function GeneratorPage() {
               )}
               data-testid="preview-area"
             >
-              {mutation.isPending ? (
+              {(mutation.isPending || previewMutation.isPending) ? (
                 <div className="absolute inset-0 skeleton-shimmer flex flex-col items-center justify-center gap-4">
-                  <div className="relative">
-                    <Loader2 className="h-10 w-10 animate-spin text-primary/60" />
-                  </div>
+                  <Loader2 className="h-10 w-10 animate-spin text-primary/60" />
                   <div className="text-center">
-                    <p className="text-sm font-medium text-foreground/80" data-testid="text-loading">Creating your background...</p>
+                    <p className="text-sm font-medium text-foreground/80" data-testid="text-loading">
+                      {previewMutation.isPending ? "Generating preview..." : "Creating your background..."}
+                    </p>
                     <p className="text-xs text-muted-foreground mt-1">This usually takes 15-30 seconds</p>
                   </div>
                 </div>
@@ -508,16 +687,18 @@ export default function GeneratorPage() {
                     </div>
                   </div>
                 </div>
-              ) : result ? (
+              ) : displayResult ? (
                 <>
                   <img
-                    src={`data:${result.mimeType};base64,${result.imageData}`}
+                    src={`data:${displayResult.mimeType};base64,${displayResult.imageData}`}
                     alt="Generated social background"
                     className="w-full h-full object-cover"
                     data-testid="img-generated"
                   />
+                  {/* Logo overlay — draggable */}
                   {logoSrc && showLogo && (
                     <div
+                      data-overlay="logo"
                       className="absolute cursor-grab active:cursor-grabbing group"
                       style={{ left: logoPos.x, top: logoPos.y }}
                       onMouseDown={handleLogoDragStart}
@@ -534,6 +715,47 @@ export default function GeneratorPage() {
                       </button>
                     </div>
                   )}
+                  {/* Text overlay — draggable */}
+                  {showTextOverlay && textOverlay && (
+                    <div
+                      data-overlay="text"
+                      className="absolute cursor-grab active:cursor-grabbing group select-none"
+                      style={{ left: textPos.x, top: textPos.y }}
+                      onMouseDown={handleTextDragStart}
+                      data-testid="text-overlay"
+                    >
+                      <p
+                        style={{
+                          fontSize: textFontSize,
+                          color: textColor,
+                          fontFamily: overlayFont ? `"${overlayFont}", Inter, sans-serif` : "Inter, sans-serif",
+                          textShadow: "0 2px 8px rgba(0,0,0,0.6), 0 1px 2px rgba(0,0,0,0.9)",
+                          fontWeight: 700,
+                          lineHeight: 1.15,
+                          whiteSpace: "nowrap",
+                          pointerEvents: "none",
+                          userSelect: "none",
+                        }}
+                        data-testid="text-overlay-content"
+                      >
+                        {textOverlay}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setShowTextOverlay(false); }}
+                        className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-background/80 border border-border flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        data-testid="button-remove-text"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  )}
+                  {/* Preview badge */}
+                  {!result && previewResult && (
+                    <div className="absolute top-2 right-2 bg-background/80 border border-border rounded px-2 py-1 text-[10px] text-muted-foreground">
+                      Preview — based on header graphic
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-muted-foreground">
@@ -542,26 +764,41 @@ export default function GeneratorPage() {
                   </div>
                   <div className="text-center">
                     <p className="text-sm font-medium" data-testid="text-empty-state">Your generated image will appear here</p>
-                    <p className="text-xs mt-1 opacity-60">Start by pasting a URL or picking a style</p>
+                    <p className="text-xs mt-1 opacity-60">Start by pasting an event URL in Step 1</p>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Logo Toggle (show/hide when logo available but hidden) */}
-            {logoSrc && !showLogo && result && (
-              <button
-                type="button"
-                onClick={() => setShowLogo(true)}
-                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
-                data-testid="button-show-logo"
-              >
-                <ImageIcon className="h-3.5 w-3.5" />
-                Show logo overlay
-              </button>
+            {/* Overlay restore buttons */}
+            {displayResult && (
+              <div className="flex items-center gap-3 flex-wrap">
+                {logoSrc && !showLogo && (
+                  <button
+                    type="button"
+                    onClick={() => setShowLogo(true)}
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
+                    data-testid="button-show-logo"
+                  >
+                    <ImageIcon className="h-3.5 w-3.5" />
+                    Show logo
+                  </button>
+                )}
+                {!showTextOverlay && (
+                  <button
+                    type="button"
+                    onClick={() => setShowTextOverlay(true)}
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
+                    data-testid="button-show-text"
+                  >
+                    <Type className="h-3.5 w-3.5" />
+                    Show text overlay
+                  </button>
+                )}
+              </div>
             )}
 
-            {/* Pro Upsell Banner */}
+            {/* Pro Upsell */}
             {result && generatedWithModel === "gemini-2.5-flash-image" && (
               <div className="flex items-center justify-between px-3 py-2 rounded-lg border border-border bg-card" data-testid="upsell-pro">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -612,458 +849,630 @@ export default function GeneratorPage() {
             )}
           </div>
 
-          {/* ===== CONFIG PANEL (RIGHT — COMPACT) ===== */}
+          {/* ===== STEPPER PANEL (RIGHT) ===== */}
           <div className="order-1 xl:order-2">
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-2">
 
-                {/* URL Input — Quick Setup */}
-                <div className="space-y-2">
-                  {showUrlInput ? (
-                    <>
-                      <div className="flex items-center gap-2">
-                        <Globe className="h-3.5 w-3.5 text-primary flex-shrink-0" />
-                        <p className="text-xs font-semibold">Brand or Event URL</p>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground -mt-1">Paste any URL to extract colors, industry, and location</p>
-                      <div className="flex gap-2">
-                        <Input
-                          value={eventUrl}
-                          onChange={(e) => { setEventUrl(e.target.value); setScrapeError(null); }}
-                          placeholder="https://example.com"
-                          className="text-sm flex-1 h-9"
-                          data-testid="input-event-url"
-                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleScrape(); } }}
-                        />
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          onClick={handleScrape}
-                          disabled={scrapeMutation.isPending}
-                          className="h-9 px-3"
-                          data-testid="button-scrape"
-                        >
-                          {scrapeMutation.isPending ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Globe className="h-3.5 w-3.5" />
-                          )}
-                          {scrapeMutation.isPending ? "Extracting..." : "Extract"}
-                        </Button>
-                      </div>
-                    </>
-                  ) : scrapeResult && (
-                    <button
-                      type="button"
-                      onClick={() => setShowUrlInput(true)}
-                      className="w-full flex items-center justify-between px-3 py-2 rounded-md border border-border text-left hover:bg-muted/50 transition-colors"
-                      data-testid="button-reopen-url"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <Globe className="h-3.5 w-3.5 text-primary flex-shrink-0" />
-                        <span className="text-xs font-medium truncate">{scrapeResult.eventName}</span>
-                      </div>
-                      <Pencil className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                    </button>
-                  )}
+                {/* ====== STEP 1: EXTRACTION ====== */}
+                <div className="border border-border rounded-lg overflow-hidden" data-testid="step-1">
+                  <StepHeader
+                    stepNum={1}
+                    title="Extract from Website"
+                    subtitle={step1Subtitle}
+                    isComplete={completedSteps.has(1)}
+                    isActive={activeStep === 1}
+                    isLocked={false}
+                    onClick={() => goToStep(1)}
+                  />
+                  {activeStep === 1 && (
+                    <div className="px-4 pb-4 border-t border-border pt-4 space-y-4">
 
-                  {/* Scrape Error — Inline */}
-                  {scrapeError && (
-                    <div className="flex items-start gap-2 p-2.5 rounded-md bg-destructive/5 border border-destructive/20" data-testid="scrape-error">
-                      <AlertCircle className="h-3.5 w-3.5 text-destructive flex-shrink-0 mt-0.5" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs text-destructive font-medium">Couldn't analyze that URL</p>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">{scrapeError}</p>
-                      </div>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        className="h-6 text-xs px-2"
-                        onClick={handleScrape}
-                        data-testid="button-retry-scrape"
-                      >
-                        Try again
-                      </Button>
-                    </div>
-                  )}
-
-                  {/* Scrape Success */}
-                  {scrapeResult && !scrapeError && (
-                    <div className="p-2.5 rounded-md bg-primary/5 border border-primary/20">
-                      <div className="flex items-start gap-2">
-                        <Check className="h-3.5 w-3.5 text-primary mt-0.5 flex-shrink-0" />
-                        <div className="min-w-0 w-full">
-                          <p className="text-xs font-medium" data-testid="text-event-name">{scrapeResult.eventName}</p>
-                          <div className="flex flex-wrap items-center gap-1 mt-1.5">
-                            <Badge variant="secondary" className="text-[10px] h-5" data-testid="badge-industry">{scrapeResult.industry}</Badge>
-                            {scrapeResult.theme && (
-                              <Badge variant="secondary" className="text-[10px] h-5" data-testid="badge-theme">{scrapeResult.theme}</Badge>
+                      {/* URL Input */}
+                      <div className="space-y-2">
+                        <p className="text-[11px] text-muted-foreground">Paste any event or brand URL to auto-extract colors, venue, and theme</p>
+                        <div className="flex gap-2">
+                          <Input
+                            value={eventUrl}
+                            onChange={(e) => { setEventUrl(e.target.value); setScrapeError(null); }}
+                            placeholder="https://example.com"
+                            className="text-sm flex-1 h-9"
+                            data-testid="input-event-url"
+                            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleScrapeAndPreview(); } }}
+                          />
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={handleScrapeAndPreview}
+                            disabled={scrapeMutation.isPending}
+                            className="h-9 px-3 flex-shrink-0"
+                            data-testid="button-scrape"
+                          >
+                            {scrapeMutation.isPending ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Globe className="h-3.5 w-3.5" />
                             )}
-                            {scrapeResult.city && (
-                              <Badge variant="outline" className="text-[10px] h-5" data-testid="badge-city">{scrapeResult.city}</Badge>
-                            )}
-                            {scrapeResult.venue && (
-                              <Badge variant="outline" className="text-[10px] h-5" data-testid="badge-venue">{scrapeResult.venue}</Badge>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-1.5 mt-2">
-                            {[scrapeResult.primaryColor, scrapeResult.secondaryColor, scrapeResult.accentColor].map((c, i) => (
-                              <div key={i} className="w-5 h-5 rounded border border-border flex-shrink-0" style={{ backgroundColor: c }} data-testid={`swatch-extracted-${i}`} />
-                            ))}
-                            <span className="text-[10px] text-muted-foreground ml-1">Extracted palette</span>
-                          </div>
+                            {scrapeMutation.isPending ? "Extracting..." : "Extract"}
+                          </Button>
+                        </div>
 
-                          {(scrapeResult.allColors || scrapeResult.screenshot) && (
-                            <button
-                              type="button"
-                              onClick={() => setShowColorDetails(!showColorDetails)}
-                              className="mt-1.5 text-[10px] text-primary/70 hover:text-primary flex items-center gap-1"
-                              data-testid="button-toggle-color-details"
-                            >
-                              {showColorDetails ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                              {showColorDetails ? "Hide details" : "Show analysis details"}
-                            </button>
-                          )}
-
-                          {showColorDetails && (
-                            <div className="mt-2 space-y-2">
-                              {scrapeResult.screenshot && (
-                                <div className="rounded overflow-hidden border border-border">
-                                  <img src={`data:image/png;base64,${scrapeResult.screenshot}`} alt="Analyzed page" className="w-full h-auto" data-testid="img-screenshot" />
-                                </div>
-                              )}
-                              {scrapeResult.allColors && scrapeResult.allColors.length > 0 && (
-                                <div>
-                                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 font-medium">All detected colors</p>
-                                  <div className="flex flex-wrap gap-1">
-                                    {scrapeResult.allColors.map((c, i) => (
-                                      <div key={i} className="w-5 h-5 rounded border border-border cursor-default" style={{ backgroundColor: c.hex }} title={`${c.hex} (score: ${c.score})`} data-testid={`detected-color-${i}`} />
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
+                        {scrapeError && (
+                          <div className="flex items-start gap-2 p-2.5 rounded-md bg-destructive/5 border border-destructive/20" data-testid="scrape-error">
+                            <AlertCircle className="h-3.5 w-3.5 text-destructive flex-shrink-0 mt-0.5" />
+                            <div className="flex-1">
+                              <p className="text-xs text-destructive font-medium">Couldn't analyze that URL</p>
+                              <p className="text-[11px] text-muted-foreground mt-0.5">{scrapeError}</p>
                             </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <Separator />
-
-                {/* Visual Style & Aspect Ratio — Compact Dropdowns */}
-                <div className="grid grid-cols-2 gap-3">
-                  <FormField
-                    control={form.control}
-                    name="style"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-xs font-semibold">Style</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger data-testid="select-style" className="h-9">
-                              <SelectValue placeholder="Select style" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {STYLES.map((s) => (
-                              <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="aspectRatio"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-xs font-semibold">Aspect Ratio</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger data-testid="select-aspect-ratio" className="h-9">
-                              <SelectValue placeholder="Select ratio" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {ASPECT_RATIOS.map((r) => (
-                              <SelectItem key={r.value} value={r.value}>
-                                {r.label} — {r.desc}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                {/* Focus Priority — always visible, above Generate */}
-                <div className="space-y-3 border border-border rounded-lg p-3" data-testid="section-focus">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-                    <Crosshair className="h-3.5 w-3.5" />
-                    Focus Priority
-                  </div>
-                  {TIER_CONFIG.map((tier) => (
-                    <FocusTierSelect
-                      key={tier.field}
-                      form={form}
-                      tierField={tier.field}
-                      label={tier.label}
-                      desc={tier.desc}
-                      testId={`tier-${tier.field}`}
-                    />
-                  ))}
-                </div>
-
-                {/* Color Prominence — always visible, above Generate */}
-                <div className="border border-border rounded-lg p-3" data-testid="section-color-prominence">
-                  <FormField
-                    control={form.control}
-                    name="colorProminence"
-                    render={({ field }) => (
-                      <FormItem>
-                        <div className="flex items-center justify-between mb-0.5">
-                          <FormLabel className="text-[11px] font-medium flex items-center gap-2">
-                            <Palette className="h-3.5 w-3.5 text-muted-foreground" />
-                            Brand Color Prominence
-                          </FormLabel>
-                          <span className="text-[10px] text-muted-foreground">
-                            {(field.value as number) <= 20 ? "Subtle tint" :
-                             (field.value as number) <= 40 ? "Soft presence" :
-                             (field.value as number) <= 60 ? "Balanced" :
-                             (field.value as number) <= 80 ? "Bold" : "Color dominant"}
-                          </span>
-                        </div>
-                        <Slider min={0} max={100} step={5} value={[field.value as number]} onValueChange={([v]) => field.onChange(v)} data-testid="slider-colorProminence" />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                {/* GENERATE BUTTON — Primary CTA */}
-                <Button
-                  type="submit"
-                  size="lg"
-                  className="w-full h-11 text-sm font-semibold"
-                  disabled={mutation.isPending}
-                  data-testid="button-generate"
-                >
-                  {mutation.isPending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    <>
-                      <Wand2 className="h-4 w-4" />
-                      Generate Background
-                    </>
-                  )}
-                </Button>
-
-                <Separator />
-
-                {/* === PROGRESSIVE DISCLOSURE SECTIONS === */}
-
-                {/* Advanced — contains Industry, Colors, Theme, City, Venue, Instructions, Model */}
-                <CollapsibleSection title="Advanced" icon={Settings2} testId="section-advanced">
-                  <div className="space-y-3">
-                    <FormField
-                      control={form.control}
-                      name="industry"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-[11px] font-medium">Industry</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger data-testid="select-industry" className="h-9">
-                                <SelectValue placeholder="Select industry" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {INDUSTRIES.map((ind) => (
-                                <SelectItem key={ind} value={ind}>{ind}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <p className="text-[10px] text-muted-foreground">Adds industry-specific motifs and visual vocabulary</p>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <Separator />
-
-                    <div>
-                      <p className="text-[11px] font-medium mb-2">Colors & Palette</p>
-                      <div>
-                        <button
-                          type="button"
-                          onClick={() => setShowPresets(!showPresets)}
-                          className="flex items-center justify-between w-full text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
-                          data-testid="button-toggle-presets"
-                        >
-                          <span>Presets</span>
-                          {showPresets ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                        </button>
-                        {showPresets && (
-                          <div className="grid grid-cols-3 gap-1 mt-1.5">
-                            {PRESET_PALETTES.map((p) => (
-                              <button
-                                key={p.name}
-                                type="button"
-                                data-testid={`palette-${p.name.toLowerCase().replace(" ", "-")}`}
-                                onClick={() => applyPalette(p)}
-                                className="flex flex-col items-center gap-1 p-1.5 rounded-md border border-border text-[10px] text-muted-foreground hover:border-primary/40 transition-colors"
-                              >
-                                <div className="flex gap-0.5">
-                                  <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.primary }} />
-                                  <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.secondary }} />
-                                  <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.accent }} />
-                                </div>
-                                <span className="truncate w-full text-center">{p.name}</span>
-                              </button>
-                            ))}
+                            <Button type="button" size="sm" variant="ghost" className="h-6 text-xs px-2" onClick={handleScrapeAndPreview} data-testid="button-retry-scrape">
+                              Retry
+                            </Button>
                           </div>
                         )}
                       </div>
 
-                      <div className="space-y-2 mt-2">
-                        {colorFields.map((cf, index) => (
-                          <div key={cf.role} className="space-y-1.5" data-testid={`color-row-${cf.role}`}>
-                            <div className="flex items-center gap-1.5">
-                              <div className="flex flex-col gap-0">
-                                <button type="button" disabled={index === 0} onClick={() => swapColors(index, "up")} className="p-0.5 rounded hover:bg-muted disabled:opacity-20 transition-colors" data-testid={`button-color-up-${cf.role}`}>
-                                  <ArrowUp className="h-2.5 w-2.5" />
-                                </button>
-                                <button type="button" disabled={index === colorFields.length - 1} onClick={() => swapColors(index, "down")} className="p-0.5 rounded hover:bg-muted disabled:opacity-20 transition-colors" data-testid={`button-color-down-${cf.role}`}>
-                                  <ArrowDown className="h-2.5 w-2.5" />
-                                </button>
+                      {scrapeResult && (
+                        <>
+                          <Separator />
+
+                          {/* Event info summary */}
+                          <div className="space-y-1">
+                            <p className="text-xs font-semibold" data-testid="text-event-name">{scrapeResult.eventName}</p>
+                            {scrapeResult.summary && (
+                              <p className="text-[11px] text-muted-foreground">{scrapeResult.summary}</p>
+                            )}
+                            {scrapeResult.fontFamily && (
+                              <div className="flex items-center gap-1.5 mt-1">
+                                <Type className="h-3 w-3 text-muted-foreground" />
+                                <span className="text-[11px] text-muted-foreground">Font detected: <span className="font-medium text-foreground">{scrapeResult.fontFamily}</span></span>
                               </div>
+                            )}
+                          </div>
+
+                          {/* Color Palette Selection */}
+                          <div>
+                            <p className="text-xs font-semibold mb-2">Brand Colors</p>
+                            {/* All detected colors swatches */}
+                            {scrapeResult.allColors && scrapeResult.allColors.length > 0 && (
+                              <div className="mb-3">
+                                <p className="text-[10px] text-muted-foreground mb-1.5">All detected colors — click to assign</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {scrapeResult.allColors.map((c, i) => (
+                                    <div key={i} className="relative group">
+                                      <button
+                                        type="button"
+                                        className="w-7 h-7 rounded border border-border hover:scale-110 transition-transform"
+                                        style={{ backgroundColor: c.hex }}
+                                        title={c.hex}
+                                        data-testid={`detected-color-${i}`}
+                                      />
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Color role pickers */}
+                            <div className="space-y-2">
+                              {colorFields.map((cf, index) => (
+                                <div key={cf.role} className="flex items-center gap-2" data-testid={`color-row-${cf.role}`}>
+                                  <div className="flex flex-col">
+                                    <button type="button" disabled={index === 0} onClick={() => swapColors(index, "up")} className="p-0.5 rounded hover:bg-muted disabled:opacity-20" data-testid={`button-color-up-${cf.role}`}>
+                                      <ArrowUp className="h-2.5 w-2.5" />
+                                    </button>
+                                    <button type="button" disabled={index === colorFields.length - 1} onClick={() => swapColors(index, "down")} className="p-0.5 rounded hover:bg-muted disabled:opacity-20" data-testid={`button-color-down-${cf.role}`}>
+                                      <ArrowDown className="h-2.5 w-2.5" />
+                                    </button>
+                                  </div>
+                                  <FormField
+                                    control={form.control}
+                                    name={cf.colorKey as any}
+                                    render={({ field }) => (
+                                      <FormItem className="flex-1 mb-0">
+                                        <div className="flex items-center gap-2">
+                                          <input
+                                            type="color"
+                                            value={field.value as string || cf.defaultFallback}
+                                            onChange={(e) => field.onChange(e.target.value)}
+                                            className="w-8 h-8 rounded cursor-pointer border border-border flex-shrink-0"
+                                            data-testid={cf.testIdColor}
+                                          />
+                                          <div className="flex-1">
+                                            <p className="text-[11px] font-medium">{cf.label}</p>
+                                          </div>
+                                          <Input
+                                            value={field.value as string}
+                                            onChange={(e) => field.onChange(e.target.value)}
+                                            className="w-24 h-7 text-[10px] font-mono uppercase px-2"
+                                            placeholder={cf.defaultFallback}
+                                            data-testid={cf.testIdInput}
+                                          />
+                                        </div>
+                                      </FormItem>
+                                    )}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          <Separator />
+
+                          {/* Editable extracted fields */}
+                          <div>
+                            <p className="text-xs font-semibold mb-2">Extracted Details</p>
+                            <div className="space-y-2">
                               <FormField
                                 control={form.control}
-                                name={cf.colorKey as any}
+                                name="industry"
                                 render={({ field }) => (
-                                  <FormItem className="flex-1">
-                                    <div className="flex items-center justify-between gap-2">
-                                      <div className="flex items-center gap-1.5">
-                                        <input type="color" value={field.value as string || cf.defaultFallback} onChange={(e) => field.onChange(e.target.value)} className="w-6 h-6 rounded cursor-pointer border border-border" data-testid={cf.testIdColor} />
-                                        <span className="text-[11px] font-medium text-muted-foreground">{cf.label}</span>
-                                      </div>
-                                      <Input value={field.value as string} onChange={(e) => field.onChange(e.target.value)} className="w-20 h-6 text-[10px] font-mono uppercase px-1.5" placeholder={cf.defaultFallback} data-testid={cf.testIdInput} />
-                                    </div>
+                                  <FormItem>
+                                    <FormLabel className="text-[11px] font-medium">Industry</FormLabel>
+                                    <Select onValueChange={field.onChange} value={field.value}>
+                                      <FormControl>
+                                        <SelectTrigger data-testid="select-industry" className="h-8 text-xs">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent>
+                                        {INDUSTRIES.map((ind) => (
+                                          <SelectItem key={ind} value={ind}>{ind}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </FormItem>
+                                )}
+                              />
+                              <FormField
+                                control={form.control}
+                                name="theme"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel className="text-[11px] font-medium">Theme</FormLabel>
+                                    <FormControl>
+                                      <Input {...field} placeholder="e.g. AI & Machine Learning..." className="text-xs h-8" data-testid="input-theme" />
+                                    </FormControl>
+                                  </FormItem>
+                                )}
+                              />
+                              <FormField
+                                control={form.control}
+                                name="city"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel className="text-[11px] font-medium flex items-center gap-1">
+                                      <MapPin className="h-3 w-3" /> City
+                                    </FormLabel>
+                                    <FormControl>
+                                      <Input {...field} placeholder="e.g. San Francisco..." className="text-xs h-8" data-testid="input-city" />
+                                    </FormControl>
+                                  </FormItem>
+                                )}
+                              />
+                              <FormField
+                                control={form.control}
+                                name="venue"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel className="text-[11px] font-medium">Venue</FormLabel>
+                                    <FormControl>
+                                      <Input {...field} placeholder="e.g. Moscone Center..." className="text-xs h-8" data-testid="input-venue" />
+                                    </FormControl>
                                   </FormItem>
                                 )}
                               />
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    </div>
 
-                    <Separator />
+                          <Separator />
 
-                    <FormField
-                      control={form.control}
-                      name="theme"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-[11px] font-medium">Event / Brand Theme</FormLabel>
-                          <FormControl>
-                            <Input {...field} placeholder="e.g. Artificial Intelligence, Sustainability, Fintech..." className="text-sm h-8" data-testid="input-theme" />
-                          </FormControl>
-                          <p className="text-[10px] text-muted-foreground">The topic or subject matter — adds conceptual imagery</p>
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="city"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-[11px] font-medium flex items-center gap-1.5">
-                            <MapPin className="h-3 w-3" />
-                            City / Location
-                          </FormLabel>
-                          <FormControl>
-                            <Input {...field} placeholder="e.g. Tokyo, New York, Paris..." className="text-sm h-8" data-testid="input-city" />
-                          </FormControl>
-                          <p className="text-[10px] text-muted-foreground">Adds skyline, landmarks, and cultural cues</p>
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="venue"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-[11px] font-medium">Venue</FormLabel>
-                          <FormControl>
-                            <Input {...field} placeholder="e.g. Moscone Center, ExCeL London..." className="text-sm h-8" data-testid="input-venue" />
-                          </FormControl>
-                          <p className="text-[10px] text-muted-foreground">Adds venue architecture and structural elements</p>
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="customPrompt"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-[11px] font-medium">Additional Instructions</FormLabel>
-                          <FormControl>
-                            <Textarea {...field} placeholder="e.g. rainy evening atmosphere, neon reflections..." className="text-sm resize-none" rows={2} data-testid="textarea-custom-prompt" />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
-
-                    <Separator />
-
-                    <FormField
-                      control={form.control}
-                      name="model"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-[11px] font-medium">Model</FormLabel>
-                          <div className="grid grid-cols-2 gap-1.5">
-                            {MODELS.map((m) => (
+                          {/* Text overlay editor */}
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <p className="text-xs font-semibold flex items-center gap-1.5">
+                                <Type className="h-3.5 w-3.5" /> Text Overlay
+                              </p>
                               <button
-                                key={m.value}
                                 type="button"
-                                data-testid={`model-${m.value}`}
-                                onClick={() => field.onChange(m.value)}
+                                onClick={() => setShowTextOverlay(!showTextOverlay)}
                                 className={cn(
-                                  "flex items-center justify-between px-2.5 py-2 rounded-md border text-left transition-colors",
-                                  field.value === m.value
-                                    ? "border-primary bg-primary/10 text-foreground"
+                                  "text-[10px] px-2 py-0.5 rounded border transition-colors",
+                                  showTextOverlay
+                                    ? "border-primary bg-primary/10 text-primary"
                                     : "border-border text-muted-foreground hover:border-muted-foreground/30"
                                 )}
+                                data-testid="button-toggle-text-overlay"
                               >
-                                <span className="text-[11px] font-medium">{m.label}</span>
-                                <Badge variant={field.value === m.value ? "default" : "secondary"} className="text-[9px] h-4 px-1.5">
-                                  {m.badge}
-                                </Badge>
+                                {showTextOverlay ? "Visible" : "Hidden"}
                               </button>
-                            ))}
+                            </div>
+                            <div className="space-y-2">
+                              <Input
+                                value={textOverlay}
+                                onChange={(e) => setTextOverlay(e.target.value)}
+                                placeholder="I'm Excited for [Event]"
+                                className="text-xs h-8"
+                                data-testid="input-text-overlay"
+                              />
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <p className="text-[10px] text-muted-foreground mb-1">Font size</p>
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => setTextFontSize((s) => Math.max(10, s - 2))}
+                                      className="w-6 h-6 rounded border border-border flex items-center justify-center hover:bg-muted"
+                                      data-testid="button-font-decrease"
+                                    >
+                                      <Minus className="h-3 w-3" />
+                                    </button>
+                                    <span className="text-xs font-mono w-8 text-center" data-testid="text-font-size">{textFontSize}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setTextFontSize((s) => Math.min(96, s + 2))}
+                                      className="w-6 h-6 rounded border border-border flex items-center justify-center hover:bg-muted"
+                                      data-testid="button-font-increase"
+                                    >
+                                      <Plus className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] text-muted-foreground mb-1">Color</p>
+                                  <div className="flex items-center gap-1.5">
+                                    <input
+                                      type="color"
+                                      value={textColor}
+                                      onChange={(e) => setTextColor(e.target.value)}
+                                      className="w-6 h-6 rounded cursor-pointer border border-border"
+                                      data-testid="input-text-color"
+                                    />
+                                    <Input
+                                      value={textColor}
+                                      onChange={(e) => setTextColor(e.target.value)}
+                                      className="flex-1 h-6 text-[10px] font-mono uppercase px-1.5"
+                                      data-testid="input-text-color-hex"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                              {overlayFont && (
+                                <p className="text-[10px] text-muted-foreground">Using font: <span className="text-foreground font-medium">{overlayFont}</span> (extracted from site)</p>
+                              )}
+                            </div>
                           </div>
-                          <FormMessage />
-                        </FormItem>
+
+                          <Button
+                            type="button"
+                            className="w-full h-9"
+                            onClick={handleCompleteStep1}
+                            data-testid="button-step1-continue"
+                          >
+                            <Check className="h-4 w-4" />
+                            Continue to Style
+                          </Button>
+                        </>
                       )}
-                    />
-                  </div>
-                </CollapsibleSection>
+
+                      {!scrapeResult && !scrapeMutation.isPending && (
+                        <div className="space-y-2">
+                          <Separator />
+                          <p className="text-[11px] text-muted-foreground">Or skip extraction and configure manually</p>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full h-8 text-xs"
+                            onClick={() => { completeStep(1); setActiveStep(2); }}
+                            data-testid="button-skip-extraction"
+                          >
+                            Skip — configure manually
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* ====== STEP 2: STYLE ====== */}
+                <div className="border border-border rounded-lg overflow-hidden" data-testid="step-2">
+                  <StepHeader
+                    stepNum={2}
+                    title="Choose Style"
+                    subtitle={step2Subtitle}
+                    isComplete={completedSteps.has(2)}
+                    isActive={activeStep === 2}
+                    isLocked={!completedSteps.has(1) && activeStep !== 2}
+                    onClick={() => goToStep(2)}
+                  />
+                  {activeStep === 2 && (
+                    <div className="px-4 pb-4 border-t border-border pt-4 space-y-4">
+                      <FormField
+                        control={form.control}
+                        name="style"
+                        render={({ field }) => (
+                          <FormItem>
+                            <div className="grid grid-cols-2 gap-2">
+                              {STYLES.map((s) => (
+                                <button
+                                  key={s.value}
+                                  type="button"
+                                  onClick={() => field.onChange(s.value)}
+                                  className={cn(
+                                    "relative rounded-lg border-2 overflow-hidden text-left transition-all",
+                                    field.value === s.value
+                                      ? "border-primary ring-2 ring-primary/30"
+                                      : "border-border hover:border-muted-foreground/30"
+                                  )}
+                                  data-testid={`style-option-${s.value}`}
+                                >
+                                  {/* Visual preview swatch */}
+                                  <div className={cn("h-14 w-full bg-gradient-to-br", s.gradient, "relative flex items-center justify-center")}>
+                                    <div className="absolute inset-0 opacity-20">
+                                      {s.value === "photorealistic" && (
+                                        <div className="w-full h-full" style={{ backgroundImage: "radial-gradient(ellipse at 70% 30%, rgba(255,255,255,0.4) 0%, transparent 60%)" }} />
+                                      )}
+                                      {s.value === "abstract" && (
+                                        <div className="w-full h-full" style={{ backgroundImage: "repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(255,255,255,0.1) 5px, rgba(255,255,255,0.1) 10px)" }} />
+                                      )}
+                                      {s.value === "minimalist" && (
+                                        <div className="absolute bottom-2 right-2 w-6 h-6 border-2 border-white/30 rounded-sm" />
+                                      )}
+                                      {s.value === "gradient" && (
+                                        <div className="w-full h-full" style={{ backgroundImage: `radial-gradient(circle at 30% 70%, ${s.accent}88, transparent 60%)` }} />
+                                      )}
+                                      {s.value === "editorial" && (
+                                        <div className="absolute left-2 top-1 w-1 h-12 rounded-full" style={{ backgroundColor: s.accent }} />
+                                      )}
+                                    </div>
+                                    {field.value === s.value && (
+                                      <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                                        <Check className="h-3 w-3 text-primary-foreground" />
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="px-2 py-1.5 bg-card">
+                                    <p className="text-xs font-semibold">{s.label}</p>
+                                    <p className="text-[10px] text-muted-foreground">{s.desc}</p>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="aspectRatio"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs font-semibold">Aspect Ratio</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger data-testid="select-aspect-ratio" className="h-9">
+                                  <SelectValue placeholder="Select ratio" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {ASPECT_RATIOS.map((r) => (
+                                  <SelectItem key={r.value} value={r.value}>
+                                    {r.label} — {r.desc}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <Button
+                        type="button"
+                        className="w-full h-9"
+                        onClick={handleCompleteStep2}
+                        data-testid="button-step2-continue"
+                      >
+                        <Check className="h-4 w-4" />
+                        Continue to Focus
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* ====== STEP 3: FOCUS & COLOR PROMINENCE ====== */}
+                <div className="border border-border rounded-lg overflow-hidden" data-testid="step-3">
+                  <StepHeader
+                    stepNum={3}
+                    title="Focus & Color Prominence"
+                    subtitle={completedSteps.has(3) ? "Configured" : undefined}
+                    isComplete={completedSteps.has(3)}
+                    isActive={activeStep === 3}
+                    isLocked={!completedSteps.has(2) && activeStep !== 3}
+                    onClick={() => goToStep(3)}
+                  />
+                  {activeStep === 3 && (
+                    <div className="px-4 pb-4 border-t border-border pt-4 space-y-4">
+
+                      {/* Focus Priority */}
+                      <div>
+                        <div className="flex items-center gap-2 mb-3">
+                          <Crosshair className="h-3.5 w-3.5 text-muted-foreground" />
+                          <p className="text-xs font-semibold">Focus Priority</p>
+                        </div>
+                        <div className="space-y-3">
+                          {TIER_CONFIG.map((tier) => (
+                            <FocusTierSelect
+                              key={tier.field}
+                              form={form}
+                              tierField={tier.field}
+                              label={tier.label}
+                              desc={tier.desc}
+                              testId={`tier-${tier.field}`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+
+                      <Separator />
+
+                      {/* Color Prominence */}
+                      <div>
+                        <FormField
+                          control={form.control}
+                          name="colorProminence"
+                          render={({ field }) => (
+                            <FormItem>
+                              <div className="flex items-center justify-between mb-2">
+                                <FormLabel className="text-xs font-semibold flex items-center gap-2">
+                                  <Palette className="h-3.5 w-3.5 text-muted-foreground" />
+                                  Brand Color Prominence
+                                </FormLabel>
+                                <span className="text-[10px] text-muted-foreground">
+                                  {(field.value as number) <= 20 ? "Subtle tint" :
+                                   (field.value as number) <= 40 ? "Soft presence" :
+                                   (field.value as number) <= 60 ? "Balanced" :
+                                   (field.value as number) <= 80 ? "Bold" : "Color dominant"}
+                                </span>
+                              </div>
+                              <Slider min={0} max={100} step={5} value={[field.value as number]} onValueChange={([v]) => field.onChange(v)} data-testid="slider-colorProminence" />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      <Separator />
+
+                      {/* Additional Instructions */}
+                      <FormField
+                        control={form.control}
+                        name="customPrompt"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs font-semibold flex items-center gap-2">
+                              <Settings2 className="h-3.5 w-3.5 text-muted-foreground" />
+                              Additional Instructions
+                            </FormLabel>
+                            <FormControl>
+                              <Textarea
+                                {...field}
+                                placeholder="e.g. rainy evening atmosphere, neon reflections..."
+                                className="text-xs resize-none"
+                                rows={2}
+                                data-testid="textarea-custom-prompt"
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+
+                      <Button
+                        type="button"
+                        className="w-full h-9"
+                        onClick={handleCompleteStep3}
+                        data-testid="button-step3-continue"
+                      >
+                        <Check className="h-4 w-4" />
+                        Continue to Generate
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* ====== STEP 4: GENERATE ====== */}
+                <div className="border border-border rounded-lg overflow-hidden" data-testid="step-4">
+                  <StepHeader
+                    stepNum={4}
+                    title="Generate Image"
+                    subtitle={result ? "Image generated" : undefined}
+                    isComplete={completedSteps.has(4)}
+                    isActive={activeStep === 4}
+                    isLocked={!completedSteps.has(3) && activeStep !== 4}
+                    onClick={() => goToStep(4)}
+                  />
+                  {activeStep === 4 && (
+                    <div className="px-4 pb-4 border-t border-border pt-4 space-y-4">
+
+                      {/* Model Selection */}
+                      <FormField
+                        control={form.control}
+                        name="model"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs font-semibold">Model</FormLabel>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              {MODELS.map((m) => (
+                                <button
+                                  key={m.value}
+                                  type="button"
+                                  data-testid={`model-${m.value}`}
+                                  onClick={() => field.onChange(m.value)}
+                                  className={cn(
+                                    "flex items-center justify-between px-2.5 py-2 rounded-md border text-left transition-colors",
+                                    field.value === m.value
+                                      ? "border-primary bg-primary/10 text-foreground"
+                                      : "border-border text-muted-foreground hover:border-muted-foreground/30"
+                                  )}
+                                >
+                                  <span className="text-[11px] font-medium">{m.label}</span>
+                                  <Badge variant={field.value === m.value ? "default" : "secondary"} className="text-[9px] h-4 px-1.5">
+                                    {m.badge}
+                                  </Badge>
+                                </button>
+                              ))}
+                            </div>
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* Generate Button */}
+                      <Button
+                        type="submit"
+                        size="lg"
+                        className="w-full h-11 text-sm font-semibold"
+                        disabled={mutation.isPending}
+                        data-testid="button-generate"
+                      >
+                        {mutation.isPending ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Creating...
+                          </>
+                        ) : (
+                          <>
+                            <Wand2 className="h-4 w-4" />
+                            {result ? "Regenerate" : "Generate Background"}
+                          </>
+                        )}
+                      </Button>
+
+                      {/* Color palette presets */}
+                      <div>
+                        <p className="text-[11px] text-muted-foreground mb-1.5">Quick palettes</p>
+                        <div className="grid grid-cols-3 gap-1">
+                          {PRESET_PALETTES.map((p) => (
+                            <button
+                              key={p.name}
+                              type="button"
+                              data-testid={`palette-${p.name.toLowerCase().replace(" ", "-")}`}
+                              onClick={() => applyPalette(p)}
+                              className="flex flex-col items-center gap-1 p-1.5 rounded-md border border-border text-[10px] text-muted-foreground hover:border-primary/40 transition-colors"
+                            >
+                              <div className="flex gap-0.5">
+                                <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.primary }} />
+                                <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.secondary }} />
+                                <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.accent }} />
+                              </div>
+                              <span className="truncate w-full text-center">{p.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                    </div>
+                  )}
+                </div>
 
               </form>
             </Form>

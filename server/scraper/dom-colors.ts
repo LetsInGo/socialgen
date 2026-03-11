@@ -19,6 +19,7 @@ export interface DomExtractionResult {
     keywords: string;
     bodyText: string;
     cssVariables: Array<{ name: string; value: string }>;
+    fontFamily: string | null;
   };
 }
 
@@ -146,6 +147,20 @@ const DOM_EXTRACTION_SCRIPT = `
     if (parsed) colors.push({ hex: parsed, source: "meta tile-color", weight: 4, area: 0 });
   }
 
+  const fontFamilyCounts = {};
+  try {
+    const fontEls = document.querySelectorAll('h1, h2, [class*="hero"] h1, [class*="hero"] h2, header h1, header h2, [class*="headline"], [class*="title"]');
+    fontEls.forEach(el => {
+      const ff = window.getComputedStyle(el).fontFamily;
+      const primary = ff.split(',')[0].trim().replace(/['"]/g, '');
+      const generic = ['serif', 'sans-serif', 'monospace', 'cursive', 'fantasy', 'system-ui', 'ui-sans-serif', 'ui-serif'];
+      if (primary && primary.length > 2 && !generic.includes(primary.toLowerCase())) {
+        fontFamilyCounts[primary] = (fontFamilyCounts[primary] || 0) + 1;
+      }
+    });
+  } catch(e) {}
+  const fontFamily = Object.keys(fontFamilyCounts).sort((a, b) => fontFamilyCounts[b] - fontFamilyCounts[a])[0] || null;
+
   return {
     colors: colors,
     metadata: {
@@ -158,6 +173,7 @@ const DOM_EXTRACTION_SCRIPT = `
       keywords: getMeta('meta[name="keywords"]'),
       bodyText: (document.body && document.body.innerText ? document.body.innerText.slice(0, 4000) : ""),
       cssVariables: cssVariables,
+      fontFamily: fontFamily,
     },
   };
 })()

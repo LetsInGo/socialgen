@@ -379,6 +379,7 @@ Rules:
           summary: typeof parsed.summary === "string" ? parsed.summary : "",
           screenshot: screenshotBase64,
           logo: logoData,
+          fontFamily: domResult.metadata.fontFamily || null,
           allColors: scoredColors.slice(0, 10).map((c) => ({
             hex: c.hex,
             score: Math.round(c.score * 10) / 10,
