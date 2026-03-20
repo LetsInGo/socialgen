@@ -141,6 +141,7 @@ interface ScrapeResult {
   secondaryConfidence: number;
   accentColor: string;
   accentConfidence: number;
+  eventDates?: string;
   city: string;
   venue: string;
   theme: string;
@@ -150,6 +151,15 @@ interface ScrapeResult {
   logo?: { base64: string; mimeType: string } | null;
   allColors?: ScrapeColorInfo[];
   fontFamily?: string | null;
+}
+
+interface TextOverlayItem {
+  id: string;
+  text: string;
+  pos: { x: number; y: number };
+  fontSize: number;
+  color: string;
+  visible: boolean;
 }
 
 type ColorRole = "primary" | "secondary" | "accent";
@@ -213,44 +223,77 @@ export default function GeneratorPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Step state: 1=extraction, 2=style, 3=focus, 4=generate
   const [activeStep, setActiveStep] = useState(1);
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
 
-  // Preview & result
   const [result, setResult] = useState<GeneratedResult | null>(null);
   const [previewResult, setPreviewResult] = useState<GeneratedResult | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [generatedWithModel, setGeneratedWithModel] = useState<string | null>(null);
 
-  // Extraction
   const [eventUrl, setEventUrl] = useState("");
   const [scrapeResult, setScrapeResult] = useState<ScrapeResult | null>(null);
   const [scrapeError, setScrapeError] = useState<string | null>(null);
 
-  // Logo overlay
   const [logoSrc, setLogoSrc] = useState<string | null>(null);
   const [showLogo, setShowLogo] = useState(true);
   const [logoPos, setLogoPos] = useState({ x: 16, y: 16 });
-  const [logoSize, setLogoSize] = useState(48);
+  const [logoSize, setLogoSize] = useState(120);
 
-  // Text overlay
-  const [textOverlay, setTextOverlay] = useState("I'm Excited for [Event]");
-  const [showTextOverlay, setShowTextOverlay] = useState(false);
-  const [textPos, setTextPos] = useState({ x: 50, y: 50 });
-  const [textFontSize, setTextFontSize] = useState(28);
-  const [textColor, setTextColor] = useState("#ffffff");
+  const computeLayout = useCallback((cw: number, ch: number) => {
+    const isPortrait = ch > cw;
+    const pad = Math.round(cw * 0.04);
+    const newLogoSize = Math.round(Math.max(40, Math.min(400, cw * 0.27)));
+    const logoX = pad;
+    const logoY = pad;
+    const headlineFontSize = Math.round(Math.max(12, Math.min(48, cw * 0.048)));
+    const detailsFontSize = Math.round(Math.max(9, Math.min(32, cw * 0.032)));
+    const ctaFontSize = Math.round(Math.max(9, Math.min(28, cw * 0.028)));
+    const textLeft = pad;
+    const contentTop = logoY + newLogoSize + Math.round(pad * 0.5);
+    const contentBottom = ch - pad;
+    const contentH = contentBottom - contentTop;
+    const gap = Math.round(Math.max(4, ch * 0.02));
+    let headlineY: number, detailsY: number, ctaY: number;
+    if (isPortrait) {
+      const midZone = contentTop + Math.round(contentH * 0.3);
+      headlineY = midZone;
+      detailsY = headlineY + Math.round(headlineFontSize * 2.2) + gap;
+      ctaY = detailsY + Math.round(detailsFontSize * 1.4) + gap;
+    } else {
+      headlineY = contentTop;
+      detailsY = headlineY + Math.round(headlineFontSize * 2.2) + gap;
+      ctaY = detailsY + Math.round(detailsFontSize * 1.4) + gap;
+    }
+    return {
+      logoSize: newLogoSize,
+      logoPos: { x: logoX, y: logoY },
+      overlays: [
+        { fontSize: headlineFontSize, pos: { x: textLeft, y: headlineY } },
+        { fontSize: detailsFontSize, pos: { x: textLeft, y: detailsY } },
+        { fontSize: ctaFontSize, pos: { x: textLeft, y: ctaY } },
+      ] as { fontSize: number; pos: { x: number; y: number } }[],
+    };
+  }, []);
+
+  const [textOverlays, setTextOverlays] = useState<TextOverlayItem[]>([
+    { id: "headline", text: "I'm Excited for [Event]", pos: { x: 50, y: 50 }, fontSize: 28, color: "#ffffff", visible: false },
+    { id: "details", text: "[Dates] · [City]", pos: { x: 50, y: 90 }, fontSize: 18, color: "#ffffff", visible: false },
+    { id: "cta", text: "Join Me, Link Above", pos: { x: 50, y: 130 }, fontSize: 16, color: "#ffffff", visible: false },
+  ]);
+  const [activeOverlayId, setActiveOverlayId] = useState<string | null>(null);
   const [overlayFont, setOverlayFont] = useState<string>("");
 
-  // Container size (tracked by ResizeObserver for ratio-aware scaling)
+  const updateOverlay = (id: string, updates: Partial<TextOverlayItem>) => {
+    setTextOverlays((prev) => prev.map((o) => o.id === id ? { ...o, ...updates } : o));
+  };
+
   const [containerWidth, setContainerWidth] = useState(0);
   const prevContainerWidth = useRef(0);
 
-  // Step 4 Advanced panel
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  // Focus tier dropdowns (Primary / Supporting / Subtle)
   const [focusLvl1, setFocusLvl1] = useState("industry");
   const [focusLvl2, setFocusLvl2] = useState("none");
   const [focusLvl3, setFocusLvl3] = useState("none");
@@ -260,14 +303,13 @@ export default function GeneratorPage() {
     if (tier === 3) { setFocusLvl3(value); form.setValue("focusTertiary", value === "none" ? [] : [value]); }
   };
 
-  // Detected-color assignment
   const [assigningColor, setAssigningColor] = useState<string | null>(null);
 
   const previewRef = useRef<HTMLDivElement>(null);
   const logoDragging = useRef(false);
   const logoDragOffset = useRef({ x: 0, y: 0 });
   const logoResizing = useRef(false);
-  const logoResizeStart = useRef({ x: 0, y: 0, size: 48 });
+  const logoResizeStart = useRef({ x: 0, y: 0, size: 120 });
   const textDragging = useRef(false);
   const textDragOffset = useRef({ x: 0, y: 0 });
 
@@ -293,6 +335,25 @@ export default function GeneratorPage() {
   });
 
   const selectedRatio = form.watch("aspectRatio");
+  const prevRatio = useRef(selectedRatio);
+
+  useEffect(() => {
+    if (prevRatio.current === selectedRatio) return;
+    prevRatio.current = selectedRatio;
+    if (!previewRef.current) return;
+    const cw = previewRef.current.clientWidth;
+    const ch = previewRef.current.clientHeight;
+    if (cw <= 0 || ch <= 0) return;
+    const layout = computeLayout(cw, ch);
+    const ids = ["headline", "details", "cta"];
+    setTextOverlays((prev) => prev.map((o, i) => {
+      const li = ids.indexOf(o.id);
+      if (li === -1) return o;
+      return { ...o, fontSize: layout.overlays[li].fontSize, pos: layout.overlays[li].pos };
+    }));
+    setLogoSize(layout.logoSize);
+    setLogoPos(layout.logoPos);
+  }, [selectedRatio, computeLayout]);
 
   const colorFields: { role: ColorRole; label: string; colorKey: keyof ImageGenerationConfig; testIdColor: string; testIdInput: string; defaultFallback: string }[] = [
     { role: "primary", label: "Primary", colorKey: "primaryColor", testIdColor: "color-primary", testIdInput: "input-primary-color", defaultFallback: "#0A84FF" },
@@ -307,44 +368,55 @@ export default function GeneratorPage() {
   const goToStep = (step: number) => {
     if (step > 1 && !completedSteps.has(1)) return;
     if (step > 2 && !completedSteps.has(2)) return;
-    if (step > 3 && !completedSteps.has(3)) return;
     setActiveStep(activeStep === step ? 0 : step);
   };
 
-  // ResizeObserver: scale logo + font proportionally when ratio changes
   useEffect(() => {
     if (!previewRef.current) return;
+    const prevHeight = { current: 0 };
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const newWidth = entry.contentRect.width;
+        const newHeight = entry.contentRect.height;
         if (prevContainerWidth.current > 0 && newWidth > 0 && Math.abs(newWidth - prevContainerWidth.current) > 2) {
-          const scale = newWidth / prevContainerWidth.current;
-          setLogoSize((s) => Math.round(Math.max(16, Math.min(300, s * scale))));
-          setTextFontSize((s) => Math.round(Math.max(8, Math.min(200, s * scale))));
+          const scaleX = newWidth / prevContainerWidth.current;
+          const scaleY = newHeight > 0 && prevHeight.current > 0 ? newHeight / prevHeight.current : scaleX;
+          setLogoSize((s) => Math.round(Math.max(32, Math.min(300, s * scaleX))));
+          setLogoPos((p) => ({ x: Math.round(p.x * scaleX), y: Math.round(p.y * scaleY) }));
+          setTextOverlays((prev) => prev.map((o) => ({
+            ...o,
+            fontSize: Math.round(Math.max(8, Math.min(200, o.fontSize * scaleX))),
+            pos: { x: Math.round(o.pos.x * scaleX), y: Math.round(o.pos.y * scaleY) },
+          })));
         }
         if (newWidth > 0) {
           prevContainerWidth.current = newWidth;
           setContainerWidth(newWidth);
         }
+        if (newHeight > 0) prevHeight.current = newHeight;
       }
     });
     observer.observe(previewRef.current);
     return () => observer.disconnect();
   }, []);
 
-  // Logo dragging
   const handleLogoDragStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     logoDragging.current = true;
     const rect = (e.target as HTMLElement).closest("[data-overlay]")!.getBoundingClientRect();
     logoDragOffset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    const startPos = { ...logoPos };
     const onMove = (me: MouseEvent) => {
       if (!logoDragging.current || !previewRef.current) return;
       const containerRect = previewRef.current.getBoundingClientRect();
-      setLogoPos({
-        x: Math.max(0, Math.min(me.clientX - containerRect.left - logoDragOffset.current.x, containerRect.width - logoSize)),
-        y: Math.max(0, Math.min(me.clientY - containerRect.top - logoDragOffset.current.y, containerRect.height - logoSize)),
-      });
+      let newX = Math.max(0, Math.min(me.clientX - containerRect.left - logoDragOffset.current.x, containerRect.width - logoSize));
+      let newY = Math.max(0, Math.min(me.clientY - containerRect.top - logoDragOffset.current.y, containerRect.height - logoSize));
+      if (me.shiftKey) {
+        const dx = Math.abs(newX - startPos.x);
+        const dy = Math.abs(newY - startPos.y);
+        if (dx > dy) { newY = startPos.y; } else { newX = startPos.x; }
+      }
+      setLogoPos({ x: newX, y: newY });
     };
     const onUp = () => {
       logoDragging.current = false;
@@ -353,9 +425,8 @@ export default function GeneratorPage() {
     };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
-  }, [logoSize]);
+  }, [logoSize, logoPos]);
 
-  // Logo resize (corner handle)
   const handleLogoResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -375,19 +446,25 @@ export default function GeneratorPage() {
     window.addEventListener("mouseup", onUp);
   }, [logoSize]);
 
-  // Text dragging
-  const handleTextDragStart = useCallback((e: React.MouseEvent) => {
+  const handleTextDragStart = useCallback((e: React.MouseEvent, overlayId: string) => {
     e.preventDefault();
     textDragging.current = true;
     const rect = (e.target as HTMLElement).closest("[data-overlay]")!.getBoundingClientRect();
     textDragOffset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    const overlay = textOverlays.find((o) => o.id === overlayId);
+    if (!overlay) return;
+    const startPos = { ...overlay.pos };
     const onMove = (me: MouseEvent) => {
       if (!textDragging.current || !previewRef.current) return;
       const containerRect = previewRef.current.getBoundingClientRect();
-      setTextPos({
-        x: Math.max(0, Math.min(me.clientX - containerRect.left - textDragOffset.current.x, containerRect.width - 100)),
-        y: Math.max(0, Math.min(me.clientY - containerRect.top - textDragOffset.current.y, containerRect.height - 40)),
-      });
+      let newX = Math.max(0, Math.min(me.clientX - containerRect.left - textDragOffset.current.x, containerRect.width - 100));
+      let newY = Math.max(0, Math.min(me.clientY - containerRect.top - textDragOffset.current.y, containerRect.height - 40));
+      if (me.shiftKey) {
+        const dx = Math.abs(newX - startPos.x);
+        const dy = Math.abs(newY - startPos.y);
+        if (dx > dy) { newY = startPos.y; } else { newX = startPos.x; }
+      }
+      updateOverlay(overlayId, { pos: { x: newX, y: newY } });
     };
     const onUp = () => {
       textDragging.current = false;
@@ -396,7 +473,8 @@ export default function GeneratorPage() {
     };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
-  }, []);
+    setActiveOverlayId(overlayId);
+  }, [textOverlays]);
 
   const scrapeMutation = useMutation({
     mutationFn: async (url: string) => {
@@ -437,9 +515,24 @@ export default function GeneratorPage() {
       form.setValue("focusTertiary", []);
 
       const eventName = data.eventName || "Event";
-      setTextOverlay(`I'm Excited for ${eventName}`);
-      setShowTextOverlay(true);
+      const dateParts = [data.eventDates, data.city].filter(Boolean);
+      const detailsText = dateParts.length > 0 ? dateParts.join(" · ") : "";
+      const el = previewRef.current;
+      const cw = el ? el.clientWidth : 400;
+      const ch = el ? el.clientHeight : 225;
+      const layout = computeLayout(cw, ch);
+      setTextOverlays([
+        { id: "headline", text: `I'm Excited for ${eventName}`, pos: layout.overlays[0].pos, fontSize: layout.overlays[0].fontSize, color: "#ffffff", visible: true },
+        { id: "details", text: detailsText || "[Dates] · [City]", pos: layout.overlays[1].pos, fontSize: layout.overlays[1].fontSize, color: "#ffffff", visible: !!detailsText },
+        { id: "cta", text: "Join Me, Link Above", pos: layout.overlays[2].pos, fontSize: layout.overlays[2].fontSize, color: "#ffffff", visible: true },
+      ]);
+      setLogoSize(layout.logoSize);
+      setLogoPos(layout.logoPos);
+      setActiveOverlayId("headline");
       setOverlayFont(data.fontFamily || "");
+
+      completeStep(1);
+      setActiveStep(2);
 
       toast({
         title: "Website analyzed",
@@ -453,7 +546,6 @@ export default function GeneratorPage() {
     },
   });
 
-  // Preview generation (Step 1 auto-generate using header graphic focus)
   const previewMutation = useMutation({
     mutationFn: async (data: ImageGenerationConfig) => {
       const res = await apiRequest("POST", "/api/generate", data);
@@ -471,10 +563,10 @@ export default function GeneratorPage() {
       return;
     }
     setScrapeError(null);
+    setPreviewResult(null);
     scrapeMutation.mutate(eventUrl.trim());
   };
 
-  // After scrape succeeds, auto-generate a quick preview
   useEffect(() => {
     if (scrapeResult && !previewMutation.isPending && !previewResult) {
       const config = form.getValues();
@@ -493,11 +585,6 @@ export default function GeneratorPage() {
     setActiveStep(3);
   };
 
-  const handleCompleteStep3 = () => {
-    completeStep(3);
-    setActiveStep(4);
-  };
-
   const mutation = useMutation({
     mutationFn: async (data: ImageGenerationConfig) => {
       const res = await apiRequest("POST", "/api/generate", data);
@@ -508,7 +595,7 @@ export default function GeneratorPage() {
       setGenerationError(null);
       setGeneratedWithModel(form.getValues("model"));
       queryClient.invalidateQueries({ queryKey: ["/api/history"] });
-      completeStep(4);
+      completeStep(3);
     },
     onError: (error: any) => {
       setGenerationError(error.message || "Something went wrong. Please try again.");
@@ -551,7 +638,7 @@ export default function GeneratorPage() {
   const downloadImage = useCallback(() => {
     if (!result) return;
     const activeResult = result;
-    const hasOverlays = (showLogo && logoSrc) || showTextOverlay;
+    const hasOverlays = (showLogo && logoSrc) || textOverlays.some((o) => o.visible);
     if (!hasOverlays || !previewRef.current) {
       const link = document.createElement("a");
       link.href = `data:${activeResult.mimeType};base64,${activeResult.imageData}`;
@@ -593,16 +680,16 @@ export default function GeneratorPage() {
       };
 
       const doText = () => {
-        if (showTextOverlay && textOverlay) {
-          const scaledSize = textFontSize * scaleX;
-          const fontStack = overlayFont ? `"${overlayFont}", Inter, sans-serif` : "Inter, sans-serif";
+        const fontStack = overlayFont ? `"${overlayFont}", Inter, sans-serif` : "Inter, sans-serif";
+        textOverlays.filter((o) => o.visible && o.text).forEach((o) => {
+          const scaledSize = o.fontSize * scaleX;
           ctx.font = `bold ${scaledSize}px ${fontStack}`;
-          ctx.fillStyle = textColor;
+          ctx.fillStyle = o.color;
           ctx.strokeStyle = "rgba(0,0,0,0.6)";
           ctx.lineWidth = scaledSize * 0.08;
-          const maxTextWidth = canvas.width * 0.5;
-          canvasWrapText(textOverlay, textPos.x * scaleX, (textPos.y + textFontSize) * scaleY, maxTextWidth, scaledSize * 1.25);
-        }
+          const maxTextWidth = canvas.width * 0.65;
+          canvasWrapText(o.text, o.pos.x * scaleX, (o.pos.y + o.fontSize) * scaleY, maxTextWidth, scaledSize * 1.25);
+        });
         canvas.toBlob((blob) => {
           if (!blob) return;
           const link = document.createElement("a");
@@ -626,7 +713,7 @@ export default function GeneratorPage() {
       }
     };
     bgImg.src = `data:${activeResult.mimeType};base64,${activeResult.imageData}`;
-  }, [result, form, showLogo, logoSrc, logoPos, logoSize, showTextOverlay, textOverlay, textPos, textFontSize, textColor, overlayFont]);
+  }, [result, form, showLogo, logoSrc, logoPos, logoSize, textOverlays, overlayFont]);
 
   const copyPrompt = useCallback(() => {
     if (!result?.prompt) return;
@@ -636,23 +723,23 @@ export default function GeneratorPage() {
 
   const displayResult = result || previewResult;
 
-  // Step 1 completion subtitle
   const step1Subtitle = scrapeResult
     ? scrapeResult.eventName || "Website analyzed"
     : undefined;
 
-  // Step 2 completion subtitle
+  const step2Subtitle = completedSteps.has(2) ? "Confirmed" : undefined;
+
   const currentStyle = form.watch("style");
   const styleObj = STYLES.find((s) => s.value === currentStyle);
-  const step2Subtitle = completedSteps.has(2) ? styleObj?.label : undefined;
+  const step3Subtitle = completedSteps.has(3) ? (result ? `${styleObj?.label} — Generated` : styleObj?.label) : undefined;
 
   return (
     <div className="min-h-full bg-background">
       <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_400px] gap-6">
 
-          {/* ===== PREVIEW PANEL (LEFT) ===== */}
-          <div className="space-y-3 order-2 xl:order-1">
+          {/* ===== PREVIEW PANEL (LEFT — sticky on desktop) ===== */}
+          <div className="space-y-3 order-2 xl:order-1 xl:self-start xl:sticky xl:top-4">
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-lg font-bold tracking-tight" data-testid="text-page-title">Nano Banana Studio</h1>
@@ -671,7 +758,6 @@ export default function GeneratorPage() {
               )}
             </div>
 
-            {/* Preview Area */}
             <div
               ref={previewRef}
               className={cn(
@@ -718,12 +804,12 @@ export default function GeneratorPage() {
               ) : displayResult ? (
                 <>
                   <img
+                    key={displayResult.id}
                     src={`data:${displayResult.mimeType};base64,${displayResult.imageData}`}
                     alt="Generated social background"
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover image-reveal"
                     data-testid="img-generated"
                   />
-                  {/* Logo overlay — draggable + resizable */}
                   {logoSrc && showLogo && (
                     <div
                       data-overlay="logo"
@@ -741,7 +827,6 @@ export default function GeneratorPage() {
                       >
                         <X className="h-3 w-3" />
                       </button>
-                      {/* Resize handle */}
                       <div
                         className="absolute -bottom-1.5 -right-1.5 w-5 h-5 rounded bg-background/80 border border-border flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-se-resize z-10"
                         onMouseDown={handleLogoResizeStart}
@@ -752,19 +837,22 @@ export default function GeneratorPage() {
                       </div>
                     </div>
                   )}
-                  {/* Text overlay — draggable, wraps at 50% */}
-                  {showTextOverlay && textOverlay && (
+                  {textOverlays.filter((o) => o.visible && o.text).map((o) => (
                     <div
-                      data-overlay="text"
-                      className="absolute cursor-grab active:cursor-grabbing group select-none"
-                      style={{ left: textPos.x, top: textPos.y, maxWidth: containerWidth > 0 ? containerWidth * 0.5 : "50%" }}
-                      onMouseDown={handleTextDragStart}
-                      data-testid="text-overlay"
+                      key={o.id}
+                      data-overlay={`text-${o.id}`}
+                      className={cn(
+                        "absolute cursor-grab active:cursor-grabbing group select-none",
+                        activeOverlayId === o.id && "ring-1 ring-primary/50 rounded"
+                      )}
+                      style={{ left: o.pos.x, top: o.pos.y, maxWidth: containerWidth > 0 ? containerWidth * 0.65 : "65%" }}
+                      onMouseDown={(e) => handleTextDragStart(e, o.id)}
+                      data-testid={`text-overlay-${o.id}`}
                     >
                       <p
                         style={{
-                          fontSize: textFontSize,
-                          color: textColor,
+                          fontSize: o.fontSize,
+                          color: o.color,
                           fontFamily: overlayFont ? `"${overlayFont}", Inter, sans-serif` : "Inter, sans-serif",
                           textShadow: "0 2px 8px rgba(0,0,0,0.6), 0 1px 2px rgba(0,0,0,0.9)",
                           fontWeight: 700,
@@ -775,21 +863,20 @@ export default function GeneratorPage() {
                           pointerEvents: "none",
                           userSelect: "none",
                         }}
-                        data-testid="text-overlay-content"
+                        data-testid={`text-overlay-content-${o.id}`}
                       >
-                        {textOverlay}
+                        {o.text}
                       </p>
                       <button
                         type="button"
-                        onClick={(e) => { e.stopPropagation(); setShowTextOverlay(false); }}
+                        onClick={(e) => { e.stopPropagation(); updateOverlay(o.id, { visible: false }); if (activeOverlayId === o.id) setActiveOverlayId(null); }}
                         className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-background/80 border border-border flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                        data-testid="button-remove-text"
+                        data-testid={`button-remove-text-${o.id}`}
                       >
                         <X className="h-3 w-3" />
                       </button>
                     </div>
-                  )}
-                  {/* Preview badge */}
+                  ))}
                   {!result && previewResult && (
                     <div className="absolute top-2 right-2 bg-background/80 border border-border rounded px-2 py-1 text-[10px] text-muted-foreground">
                       Preview — based on header graphic
@@ -809,7 +896,6 @@ export default function GeneratorPage() {
               )}
             </div>
 
-            {/* Overlay restore buttons */}
             {displayResult && (
               <div className="flex items-center gap-3 flex-wrap">
                 {logoSrc && !showLogo && (
@@ -823,21 +909,35 @@ export default function GeneratorPage() {
                     Show logo
                   </button>
                 )}
-                {!showTextOverlay && (
+                {textOverlays.filter((o) => !o.visible).map((o) => (
                   <button
+                    key={o.id}
                     type="button"
-                    onClick={() => setShowTextOverlay(true)}
+                    onClick={() => { updateOverlay(o.id, { visible: true }); setActiveOverlayId(o.id); }}
                     className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
-                    data-testid="button-show-text"
+                    data-testid={`button-show-text-${o.id}`}
                   >
                     <Type className="h-3.5 w-3.5" />
-                    Show text overlay
+                    Show {o.id === "headline" ? "headline" : o.id === "details" ? "details" : "CTA"}
                   </button>
-                )}
+                ))}
               </div>
             )}
 
-            {/* Pro Upsell */}
+            {displayResult && activeOverlayId && textOverlays.find((o) => o.id === activeOverlayId && o.visible) && (() => {
+              const ao = textOverlays.find((o) => o.id === activeOverlayId)!;
+              return (
+                <div className="flex items-center gap-2 px-2 py-1.5 rounded-md border border-primary/30 bg-muted/30" data-testid={`overlay-controls-${ao.id}`}>
+                  <span className="text-[10px] font-medium text-muted-foreground w-14 truncate capitalize">{ao.id}</span>
+                  <button type="button" onClick={() => updateOverlay(ao.id, { fontSize: Math.max(8, ao.fontSize - 2) })} className="w-5 h-5 rounded border border-border flex items-center justify-center hover:bg-muted" data-testid={`button-font-dec-${ao.id}`}><Minus className="h-2.5 w-2.5" /></button>
+                  <span className="text-[10px] font-mono w-6 text-center" data-testid={`text-font-size-${ao.id}`}>{ao.fontSize}</span>
+                  <button type="button" onClick={() => updateOverlay(ao.id, { fontSize: Math.min(96, ao.fontSize + 2) })} className="w-5 h-5 rounded border border-border flex items-center justify-center hover:bg-muted" data-testid={`button-font-inc-${ao.id}`}><Plus className="h-2.5 w-2.5" /></button>
+                  <input type="color" value={ao.color} onChange={(e) => updateOverlay(ao.id, { color: e.target.value })} className="w-5 h-5 rounded cursor-pointer border border-border flex-shrink-0" data-testid={`input-color-${ao.id}`} />
+                  <Input value={ao.text} onChange={(e) => updateOverlay(ao.id, { text: e.target.value })} className="flex-1 h-6 text-[10px] px-1.5" data-testid={`input-text-${ao.id}`} />
+                </div>
+              );
+            })()}
+
             {result && generatedWithModel === "gemini-2.5-flash-image" && (
               <div className="flex items-center justify-between px-3 py-2 rounded-lg border border-border bg-card" data-testid="upsell-pro">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -857,7 +957,6 @@ export default function GeneratorPage() {
               </div>
             )}
 
-            {/* Prompt Reveal */}
             {result && (
               <div>
                 <button
@@ -888,10 +987,10 @@ export default function GeneratorPage() {
             )}
           </div>
 
-          {/* ===== STEPPER PANEL (RIGHT) ===== */}
-          <div className="order-1 xl:order-2">
+          {/* ===== STEPPER PANEL (RIGHT — scrolls independently) ===== */}
+          <div className="order-1 xl:order-2 xl:max-h-[calc(100vh-5rem)] xl:overflow-y-auto">
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-2">
+              <form onSubmit={(e) => { if (activeStep !== 3) { e.preventDefault(); return; } form.handleSubmit(onSubmit)(e); }} className="space-y-2">
 
                 {/* ====== STEP 1: EXTRACTION ====== */}
                 <div className="border border-border rounded-lg overflow-hidden" data-testid="step-1">
@@ -906,8 +1005,6 @@ export default function GeneratorPage() {
                   />
                   {activeStep === 1 && (
                     <div className="px-4 pb-4 border-t border-border pt-4 space-y-4">
-
-                      {/* URL Input */}
                       <div className="space-y-2">
                         <p className="text-[11px] text-muted-foreground">Paste any event or brand URL to auto-extract colors, venue, and theme</p>
                         <div className="flex gap-2">
@@ -952,12 +1049,61 @@ export default function GeneratorPage() {
                       </div>
 
                       {scrapeResult && (
-                        <>
+                        <div className="space-y-2">
                           <Separator />
+                          <div className="flex items-center gap-2">
+                            <Check className="h-4 w-4 text-primary" />
+                            <p className="text-xs font-medium" data-testid="text-event-name">{scrapeResult.eventName || "Website analyzed"}</p>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground">Extraction complete — continue to review details</p>
+                          <Button
+                            type="button"
+                            className="w-full h-9"
+                            onClick={handleCompleteStep1}
+                            data-testid="button-step1-continue"
+                          >
+                            <Check className="h-4 w-4" />
+                            Continue to Confirm
+                          </Button>
+                        </div>
+                      )}
 
-                          {/* Event info summary */}
+                      {!scrapeResult && !scrapeMutation.isPending && (
+                        <div className="space-y-2">
+                          <Separator />
+                          <p className="text-[11px] text-muted-foreground">Or skip extraction and configure manually</p>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full h-8 text-xs"
+                            onClick={() => { completeStep(1); setActiveStep(2); }}
+                            data-testid="button-skip-extraction"
+                          >
+                            Skip — configure manually
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* ====== STEP 2: CONFIRM EXTRACTION ====== */}
+                <div className="border border-border rounded-lg overflow-hidden" data-testid="step-2">
+                  <StepHeader
+                    stepNum={2}
+                    title="Confirm Extraction"
+                    subtitle={step2Subtitle}
+                    isComplete={completedSteps.has(2)}
+                    isActive={activeStep === 2}
+                    isLocked={!completedSteps.has(1) && activeStep !== 2}
+                    onClick={() => goToStep(2)}
+                  />
+                  {activeStep === 2 && (
+                    <div className="px-4 pb-4 border-t border-border pt-4 space-y-4">
+                      {scrapeResult ? (
+                        <>
                           <div className="space-y-1">
-                            <p className="text-xs font-semibold" data-testid="text-event-name">{scrapeResult.eventName}</p>
+                            <p className="text-xs font-semibold" data-testid="text-confirm-event-name">{scrapeResult.eventName}</p>
                             {scrapeResult.summary && (
                               <p className="text-[11px] text-muted-foreground">{scrapeResult.summary}</p>
                             )}
@@ -969,10 +1115,8 @@ export default function GeneratorPage() {
                             )}
                           </div>
 
-                          {/* Color Palette Selection */}
                           <div>
                             <p className="text-xs font-semibold mb-2">Brand Colors</p>
-                            {/* All detected colors swatches */}
                             {scrapeResult.allColors && scrapeResult.allColors.length > 0 && (
                               <div className="mb-3">
                                 <p className="text-[10px] text-muted-foreground mb-1.5">Detected colors — click a swatch to reassign</p>
@@ -995,7 +1139,7 @@ export default function GeneratorPage() {
                                   ))}
                                 </div>
                                 {assigningColor && (
-                                  <div className="mt-2 flex items-center gap-2 px-2.5 py-2 rounded-md bg-muted/50 border border-border">
+                                  <div className="mt-2 flex items-center gap-2 px-2.5 py-2 rounded-md bg-muted/50 border border-border" data-testid="assign-color-bar">
                                     <div className="w-4 h-4 rounded flex-shrink-0 border border-border" style={{ backgroundColor: assigningColor }} />
                                     <span className="text-[10px] text-muted-foreground">Assign to:</span>
                                     {[
@@ -1013,7 +1157,7 @@ export default function GeneratorPage() {
                                         {label}
                                       </button>
                                     ))}
-                                    <button type="button" onClick={() => setAssigningColor(null)} className="ml-auto text-muted-foreground hover:text-foreground">
+                                    <button type="button" onClick={() => setAssigningColor(null)} className="ml-auto text-muted-foreground hover:text-foreground" data-testid="button-close-color-assign">
                                       <X className="h-3 w-3" />
                                     </button>
                                   </div>
@@ -1021,7 +1165,6 @@ export default function GeneratorPage() {
                               </div>
                             )}
 
-                            {/* Color role pickers */}
                             <div className="space-y-2">
                               {colorFields.map((cf, index) => (
                                 <div key={cf.role} className="flex items-center gap-2" data-testid={`color-row-${cf.role}`}>
@@ -1065,9 +1208,23 @@ export default function GeneratorPage() {
                             </div>
                           </div>
 
+                          {scrapeResult.logo && logoSrc && (
+                            <div>
+                              <p className="text-xs font-semibold mb-2">Logo</p>
+                              <div className="flex items-center gap-3">
+                                <img
+                                  src={logoSrc}
+                                  alt="Detected logo"
+                                  className="w-12 h-12 object-contain rounded border border-border bg-muted/20"
+                                  data-testid="img-confirm-logo"
+                                />
+                                <p className="text-[11px] text-muted-foreground">Detected from website — will be placed as an overlay</p>
+                              </div>
+                            </div>
+                          )}
+
                           <Separator />
 
-                          {/* Editable extracted fields */}
                           <div>
                             <p className="text-xs font-semibold mb-2">Extracted Details</p>
                             <div className="space-y-2">
@@ -1135,76 +1292,34 @@ export default function GeneratorPage() {
 
                           <Separator />
 
-                          {/* Text overlay editor */}
                           <div>
-                            <div className="flex items-center justify-between mb-2">
-                              <p className="text-xs font-semibold flex items-center gap-1.5">
-                                <Type className="h-3.5 w-3.5" /> Text Overlay
-                              </p>
-                              <button
-                                type="button"
-                                onClick={() => setShowTextOverlay(!showTextOverlay)}
-                                className={cn(
-                                  "text-[10px] px-2 py-0.5 rounded border transition-colors",
-                                  showTextOverlay
-                                    ? "border-primary bg-primary/10 text-primary"
-                                    : "border-border text-muted-foreground hover:border-muted-foreground/30"
-                                )}
-                                data-testid="button-toggle-text-overlay"
-                              >
-                                {showTextOverlay ? "Visible" : "Hidden"}
-                              </button>
-                            </div>
+                            <p className="text-xs font-semibold flex items-center gap-1.5 mb-2">
+                              <Type className="h-3.5 w-3.5" /> Text Overlays
+                            </p>
                             <div className="space-y-2">
-                              <Input
-                                value={textOverlay}
-                                onChange={(e) => setTextOverlay(e.target.value)}
-                                placeholder="I'm Excited for [Event]"
-                                className="text-xs h-8"
-                                data-testid="input-text-overlay"
-                              />
-                              <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                  <p className="text-[10px] text-muted-foreground mb-1">Font size</p>
-                                  <div className="flex items-center gap-1">
-                                    <button
-                                      type="button"
-                                      onClick={() => setTextFontSize((s) => Math.max(10, s - 2))}
-                                      className="w-6 h-6 rounded border border-border flex items-center justify-center hover:bg-muted"
-                                      data-testid="button-font-decrease"
-                                    >
-                                      <Minus className="h-3 w-3" />
-                                    </button>
-                                    <span className="text-xs font-mono w-8 text-center" data-testid="text-font-size">{textFontSize}</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => setTextFontSize((s) => Math.min(96, s + 2))}
-                                      className="w-6 h-6 rounded border border-border flex items-center justify-center hover:bg-muted"
-                                      data-testid="button-font-increase"
-                                    >
-                                      <Plus className="h-3 w-3" />
-                                    </button>
-                                  </div>
+                              {textOverlays.map((o) => (
+                                <div key={o.id} className="flex items-center gap-2" data-testid={`overlay-row-${o.id}`}>
+                                  <button
+                                    type="button"
+                                    onClick={() => updateOverlay(o.id, { visible: !o.visible })}
+                                    className={cn(
+                                      "text-[9px] px-1.5 py-0.5 rounded border transition-colors flex-shrink-0 w-12 text-center",
+                                      o.visible ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"
+                                    )}
+                                    data-testid={`button-toggle-overlay-${o.id}`}
+                                  >
+                                    {o.visible ? "On" : "Off"}
+                                  </button>
+                                  <Input
+                                    value={o.text}
+                                    onChange={(e) => updateOverlay(o.id, { text: e.target.value })}
+                                    placeholder={o.id === "headline" ? "Headline…" : o.id === "details" ? "Dates · City…" : "CTA…"}
+                                    className="text-xs h-7 flex-1"
+                                    data-testid={`input-overlay-text-${o.id}`}
+                                  />
+                                  <input type="color" value={o.color} onChange={(e) => updateOverlay(o.id, { color: e.target.value })} className="w-6 h-6 rounded cursor-pointer border border-border flex-shrink-0" data-testid={`input-overlay-color-${o.id}`} />
                                 </div>
-                                <div>
-                                  <p className="text-[10px] text-muted-foreground mb-1">Color</p>
-                                  <div className="flex items-center gap-1.5">
-                                    <input
-                                      type="color"
-                                      value={textColor}
-                                      onChange={(e) => setTextColor(e.target.value)}
-                                      className="w-6 h-6 rounded cursor-pointer border border-border"
-                                      data-testid="input-text-color"
-                                    />
-                                    <Input
-                                      value={textColor}
-                                      onChange={(e) => setTextColor(e.target.value)}
-                                      className="flex-1 h-6 text-[10px] font-mono uppercase px-1.5"
-                                      data-testid="input-text-color-hex"
-                                    />
-                                  </div>
-                                </div>
-                              </div>
+                              ))}
                               <div>
                                 <p className="text-[10px] text-muted-foreground mb-1">Font family</p>
                                 <Input
@@ -1221,27 +1336,153 @@ export default function GeneratorPage() {
                           <Button
                             type="button"
                             className="w-full h-9"
-                            onClick={handleCompleteStep1}
-                            data-testid="button-step1-continue"
+                            onClick={handleCompleteStep2}
+                            data-testid="button-step2-continue"
                           >
                             <Check className="h-4 w-4" />
-                            Continue to Style
+                            Looks good, continue
                           </Button>
                         </>
-                      )}
+                      ) : (
+                        <div className="space-y-4">
+                          <p className="text-xs text-muted-foreground">No extraction data — configure manually below.</p>
 
-                      {!scrapeResult && !scrapeMutation.isPending && (
-                        <div className="space-y-2">
+                          <div className="space-y-2">
+                            <FormField
+                              control={form.control}
+                              name="industry"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel className="text-[11px] font-medium">Industry</FormLabel>
+                                  <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl>
+                                      <SelectTrigger data-testid="select-industry-manual" className="h-8 text-xs">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      {INDUSTRIES.map((ind) => (
+                                        <SelectItem key={ind} value={ind}>{ind}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="theme"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel className="text-[11px] font-medium">Theme</FormLabel>
+                                  <FormControl>
+                                    <Input {...field} placeholder="e.g. AI & Machine Learning..." className="text-xs h-8" data-testid="input-theme-manual" />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="city"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel className="text-[11px] font-medium flex items-center gap-1">
+                                    <MapPin className="h-3 w-3" /> City
+                                  </FormLabel>
+                                  <FormControl>
+                                    <Input {...field} placeholder="e.g. San Francisco..." className="text-xs h-8" data-testid="input-city-manual" />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="venue"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel className="text-[11px] font-medium">Venue</FormLabel>
+                                  <FormControl>
+                                    <Input {...field} placeholder="e.g. Moscone Center..." className="text-xs h-8" data-testid="input-venue-manual" />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            {colorFields.map((cf) => (
+                              <FormField
+                                key={cf.role}
+                                control={form.control}
+                                name={cf.colorKey as any}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <div className="flex items-center gap-2">
+                                      <input
+                                        type="color"
+                                        value={field.value as string || cf.defaultFallback}
+                                        onChange={(e) => field.onChange(e.target.value)}
+                                        className="w-8 h-8 rounded cursor-pointer border border-border flex-shrink-0"
+                                        data-testid={`${cf.testIdColor}-manual`}
+                                      />
+                                      <div className="flex-1">
+                                        <p className="text-[11px] font-medium">{cf.label}</p>
+                                      </div>
+                                      <Input
+                                        value={field.value as string}
+                                        onChange={(e) => field.onChange(e.target.value)}
+                                        className="w-24 h-7 text-[10px] font-mono uppercase px-2"
+                                        placeholder={cf.defaultFallback}
+                                        data-testid={`${cf.testIdInput}-manual`}
+                                      />
+                                    </div>
+                                  </FormItem>
+                                )}
+                              />
+                            ))}
+                          </div>
+
                           <Separator />
-                          <p className="text-[11px] text-muted-foreground">Or skip extraction and configure manually</p>
+
+                          <div>
+                            <p className="text-xs font-semibold flex items-center gap-1.5 mb-2">
+                              <Type className="h-3.5 w-3.5" /> Text Overlays
+                            </p>
+                            <div className="space-y-2">
+                              {textOverlays.map((o) => (
+                                <div key={o.id} className="flex items-center gap-2" data-testid={`overlay-row-${o.id}-manual`}>
+                                  <button
+                                    type="button"
+                                    onClick={() => updateOverlay(o.id, { visible: !o.visible })}
+                                    className={cn(
+                                      "text-[9px] px-1.5 py-0.5 rounded border transition-colors flex-shrink-0 w-12 text-center",
+                                      o.visible ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"
+                                    )}
+                                    data-testid={`button-toggle-overlay-${o.id}-manual`}
+                                  >
+                                    {o.visible ? "On" : "Off"}
+                                  </button>
+                                  <Input
+                                    value={o.text}
+                                    onChange={(e) => updateOverlay(o.id, { text: e.target.value })}
+                                    placeholder={o.id === "headline" ? "Headline…" : o.id === "details" ? "Dates · City…" : "CTA…"}
+                                    className="text-xs h-7 flex-1"
+                                    data-testid={`input-overlay-text-${o.id}-manual`}
+                                  />
+                                  <input type="color" value={o.color} onChange={(e) => updateOverlay(o.id, { color: e.target.value })} className="w-6 h-6 rounded cursor-pointer border border-border flex-shrink-0" data-testid={`input-overlay-color-${o.id}-manual`} />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
                           <Button
                             type="button"
-                            variant="outline"
-                            className="w-full h-8 text-xs"
-                            onClick={() => { completeStep(1); setActiveStep(2); }}
-                            data-testid="button-skip-extraction"
+                            className="w-full h-9"
+                            onClick={handleCompleteStep2}
+                            data-testid="button-step2-continue-manual"
                           >
-                            Skip — configure manually
+                            <Check className="h-4 w-4" />
+                            Continue to Style & Generate
                           </Button>
                         </div>
                       )}
@@ -1249,24 +1490,26 @@ export default function GeneratorPage() {
                   )}
                 </div>
 
-                {/* ====== STEP 2: STYLE ====== */}
-                <div className="border border-border rounded-lg overflow-hidden" data-testid="step-2">
+                {/* ====== STEP 3: STYLE + GENERATE (COMBINED) ====== */}
+                <div className="border border-border rounded-lg overflow-hidden" data-testid="step-3">
                   <StepHeader
-                    stepNum={2}
-                    title="Choose Style"
-                    subtitle={step2Subtitle}
-                    isComplete={completedSteps.has(2)}
-                    isActive={activeStep === 2}
-                    isLocked={!completedSteps.has(1) && activeStep !== 2}
-                    onClick={() => goToStep(2)}
+                    stepNum={3}
+                    title="Style & Generate"
+                    subtitle={step3Subtitle}
+                    isComplete={completedSteps.has(3)}
+                    isActive={activeStep === 3}
+                    isLocked={!completedSteps.has(2) && activeStep !== 3}
+                    onClick={() => goToStep(3)}
                   />
-                  {activeStep === 2 && (
+                  {activeStep === 3 && (
                     <div className="px-4 pb-4 border-t border-border pt-4 space-y-4">
+
                       <FormField
                         control={form.control}
                         name="style"
                         render={({ field }) => (
                           <FormItem>
+                            <FormLabel className="text-xs font-semibold">Style</FormLabel>
                             <div className="grid grid-cols-2 gap-2">
                               {STYLES.map((s) => (
                                 <button
@@ -1281,27 +1524,51 @@ export default function GeneratorPage() {
                                   )}
                                   data-testid={`style-option-${s.value}`}
                                 >
-                                  {/* Visual preview swatch */}
-                                  <div className={cn("h-14 w-full bg-gradient-to-br", s.gradient, "relative flex items-center justify-center")}>
-                                    <div className="absolute inset-0 opacity-20">
-                                      {s.value === "photorealistic" && (
-                                        <div className="w-full h-full" style={{ backgroundImage: "radial-gradient(ellipse at 70% 30%, rgba(255,255,255,0.4) 0%, transparent 60%)" }} />
-                                      )}
-                                      {s.value === "abstract" && (
-                                        <div className="w-full h-full" style={{ backgroundImage: "repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(255,255,255,0.1) 5px, rgba(255,255,255,0.1) 10px)" }} />
-                                      )}
-                                      {s.value === "minimalist" && (
-                                        <div className="absolute bottom-2 right-2 w-6 h-6 border-2 border-white/30 rounded-sm" />
-                                      )}
-                                      {s.value === "gradient" && (
-                                        <div className="w-full h-full" style={{ backgroundImage: `radial-gradient(circle at 30% 70%, ${s.accent}88, transparent 60%)` }} />
-                                      )}
-                                      {s.value === "editorial" && (
-                                        <div className="absolute left-2 top-1 w-1 h-12 rounded-full" style={{ backgroundColor: s.accent }} />
-                                      )}
-                                    </div>
+                                  <div className={cn("h-16 w-full bg-gradient-to-br", s.gradient, "relative flex items-center justify-center overflow-hidden")}>
+                                    {s.value === "photorealistic" && (
+                                      <div className="absolute inset-0" style={{ backgroundImage: "radial-gradient(ellipse at 70% 30%, rgba(255,255,255,0.35) 0%, transparent 50%), radial-gradient(ellipse at 20% 80%, rgba(0,0,0,0.3) 0%, transparent 50%)" }}>
+                                        <div className="absolute bottom-0 left-0 right-0 h-[40%]" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.4), transparent)" }} />
+                                        <div className="absolute w-3 h-4 rounded-sm bg-white/20 top-2 left-[45%]" />
+                                        <div className="absolute w-5 h-3 rounded-sm bg-white/15 top-3 left-[55%]" />
+                                      </div>
+                                    )}
+                                    {s.value === "illustration" && (
+                                      <div className="absolute inset-0">
+                                        <div className="absolute w-6 h-6 rounded-full border-2 border-white/25 top-1 left-2" />
+                                        <div className="absolute w-4 h-4 rounded-full bg-white/15 top-3 right-4" />
+                                        <div className="absolute bottom-1 left-4 right-4 h-[1px] bg-white/20" />
+                                        <div className="absolute bottom-3 left-6 right-6 h-[1px] bg-white/15" />
+                                        <svg className="absolute bottom-0 left-0 w-full h-8 opacity-20" viewBox="0 0 100 30"><path d="M0 25 Q 15 10 30 20 T 60 15 T 100 20 V30 H0Z" fill="white"/></svg>
+                                      </div>
+                                    )}
+                                    {s.value === "abstract" && (
+                                      <div className="absolute inset-0">
+                                        <div className="absolute w-10 h-10 rounded-full bg-white/10 -top-2 -left-2" />
+                                        <div className="absolute w-6 h-6 rotate-45 bg-white/15 top-1 right-3" />
+                                        <div className="absolute w-14 h-[2px] bg-white/20 top-8 left-4 rotate-[-20deg]" />
+                                        <div className="absolute w-4 h-4 rounded-full border border-white/20 bottom-2 left-[40%]" />
+                                      </div>
+                                    )}
+                                    {s.value === "minimalist" && (
+                                      <div className="absolute inset-0 flex items-center justify-center">
+                                        <div className="w-[60%] h-[1px] bg-white/25 absolute top-5" />
+                                        <div className="w-5 h-5 border border-white/30 rounded-full" />
+                                        <div className="absolute bottom-3 left-[20%] w-[30%] h-[1px] bg-white/15" />
+                                      </div>
+                                    )}
+                                    {s.value === "gradient" && (
+                                      <div className="absolute inset-0" style={{ backgroundImage: `radial-gradient(circle at 25% 40%, ${s.accent}aa, transparent 50%), radial-gradient(circle at 75% 60%, rgba(255,255,255,0.15), transparent 45%), linear-gradient(135deg, transparent 30%, rgba(255,255,255,0.08) 50%, transparent 70%)` }} />
+                                    )}
+                                    {s.value === "editorial" && (
+                                      <div className="absolute inset-0">
+                                        <div className="absolute left-2 top-2 bottom-2 w-[2px] rounded-full" style={{ backgroundColor: `${s.accent}cc` }} />
+                                        <div className="absolute top-3 left-5 right-3 h-[2px] bg-white/25" />
+                                        <div className="absolute top-6 left-5 w-[40%] h-[1.5px] bg-white/15" />
+                                        <div className="absolute bottom-3 left-5 right-3 h-[2px] bg-white/20" />
+                                      </div>
+                                    )}
                                     {field.value === s.value && (
-                                      <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                                      <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center z-10">
                                         <Check className="h-3 w-3 text-primary-foreground" />
                                       </div>
                                     )}
@@ -1316,6 +1583,39 @@ export default function GeneratorPage() {
                             <FormMessage />
                           </FormItem>
                         )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="colorProminence"
+                        render={({ field }) => {
+                          const pv = field.value as number;
+                          const pLabel = pv <= 20 ? "Subtle tint" : pv <= 40 ? "Soft presence" : pv <= 60 ? "Balanced" : pv <= 80 ? "Bold" : "Color dominant";
+                          const pc = form.getValues("primaryColor") || "#0A84FF";
+                          const sc = form.getValues("secondaryColor") || "#0B1F3B";
+                          const ac = form.getValues("accentColor") || "#64D2FF";
+                          const pOpacity = Math.round(Math.max(10, Math.min(100, pv * 1.0)));
+                          return (
+                          <FormItem>
+                            <div className="flex items-center justify-between mb-1">
+                              <FormLabel className="text-xs font-semibold flex items-center gap-2">
+                                <Palette className="h-3.5 w-3.5 text-muted-foreground" />
+                                Brand Color Prominence
+                              </FormLabel>
+                              <span className="text-[10px] font-medium text-muted-foreground">{pLabel}</span>
+                            </div>
+                            <div
+                              className="h-6 rounded-md mb-2 border border-border overflow-hidden transition-all"
+                              style={{
+                                background: `linear-gradient(90deg, ${pc}${pOpacity.toString(16).padStart(2, "0")} 0%, ${sc}${pOpacity.toString(16).padStart(2, "0")} 50%, ${ac}${pOpacity.toString(16).padStart(2, "0")} 100%)`,
+                              }}
+                              data-testid="prominence-preview-bar"
+                            />
+                            <Slider min={0} max={100} step={5} value={[pv]} onValueChange={([v]) => field.onChange(v)} data-testid="slider-colorProminence" />
+                            <p className="text-[10px] text-muted-foreground mt-1">{pv}% — {pLabel}</p>
+                          </FormItem>
+                          );
+                        }}
                       />
 
                       <FormField
@@ -1343,34 +1643,37 @@ export default function GeneratorPage() {
                         )}
                       />
 
-                      <Button
-                        type="button"
-                        className="w-full h-9"
-                        onClick={handleCompleteStep2}
-                        data-testid="button-step2-continue"
-                      >
-                        <Check className="h-4 w-4" />
-                        Continue to Focus
-                      </Button>
-                    </div>
-                  )}
-                </div>
+                      <FormField
+                        control={form.control}
+                        name="model"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs font-semibold">Model</FormLabel>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              {MODELS.map((m) => (
+                                <button
+                                  key={m.value}
+                                  type="button"
+                                  data-testid={`model-${m.value}`}
+                                  onClick={() => field.onChange(m.value)}
+                                  className={cn(
+                                    "flex items-center justify-between px-2.5 py-2 rounded-md border text-left transition-colors",
+                                    field.value === m.value
+                                      ? "border-primary bg-primary/10 text-foreground"
+                                      : "border-border text-muted-foreground hover:border-muted-foreground/30"
+                                  )}
+                                >
+                                  <span className="text-[11px] font-medium">{m.label}</span>
+                                  <Badge variant={field.value === m.value ? "default" : "secondary"} className="text-[9px] h-4 px-1.5">
+                                    {m.badge}
+                                  </Badge>
+                                </button>
+                              ))}
+                            </div>
+                          </FormItem>
+                        )}
+                      />
 
-                {/* ====== STEP 3: FOCUS & COLOR PROMINENCE ====== */}
-                <div className="border border-border rounded-lg overflow-hidden" data-testid="step-3">
-                  <StepHeader
-                    stepNum={3}
-                    title="Focus & Color Prominence"
-                    subtitle={completedSteps.has(3) ? "Configured" : undefined}
-                    isComplete={completedSteps.has(3)}
-                    isActive={activeStep === 3}
-                    isLocked={!completedSteps.has(2) && activeStep !== 3}
-                    onClick={() => goToStep(3)}
-                  />
-                  {activeStep === 3 && (
-                    <div className="px-4 pb-4 border-t border-border pt-4 space-y-4">
-
-                      {/* Focus Priority — three-level dropdowns */}
                       <div>
                         <div className="flex items-center gap-2 mb-3">
                           <Crosshair className="h-3.5 w-3.5 text-muted-foreground" />
@@ -1412,116 +1715,6 @@ export default function GeneratorPage() {
 
                       <Separator />
 
-                      {/* Color Prominence */}
-                      <div>
-                        <FormField
-                          control={form.control}
-                          name="colorProminence"
-                          render={({ field }) => (
-                            <FormItem>
-                              <div className="flex items-center justify-between mb-2">
-                                <FormLabel className="text-xs font-semibold flex items-center gap-2">
-                                  <Palette className="h-3.5 w-3.5 text-muted-foreground" />
-                                  Brand Color Prominence
-                                </FormLabel>
-                                <span className="text-[10px] text-muted-foreground">
-                                  {(field.value as number) <= 20 ? "Subtle tint" :
-                                   (field.value as number) <= 40 ? "Soft presence" :
-                                   (field.value as number) <= 60 ? "Balanced" :
-                                   (field.value as number) <= 80 ? "Bold" : "Color dominant"}
-                                </span>
-                              </div>
-                              <Slider min={0} max={100} step={5} value={[field.value as number]} onValueChange={([v]) => field.onChange(v)} data-testid="slider-colorProminence" />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-
-                      <Separator />
-
-                      {/* Additional Instructions */}
-                      <FormField
-                        control={form.control}
-                        name="customPrompt"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs font-semibold flex items-center gap-2">
-                              <Settings2 className="h-3.5 w-3.5 text-muted-foreground" />
-                              Additional Instructions
-                            </FormLabel>
-                            <FormControl>
-                              <Textarea
-                                {...field}
-                                placeholder="e.g. rainy evening atmosphere, neon reflections..."
-                                className="text-xs resize-none"
-                                rows={2}
-                                data-testid="textarea-custom-prompt"
-                              />
-                            </FormControl>
-                          </FormItem>
-                        )}
-                      />
-
-                      <Button
-                        type="button"
-                        className="w-full h-9"
-                        onClick={handleCompleteStep3}
-                        data-testid="button-step3-continue"
-                      >
-                        <Check className="h-4 w-4" />
-                        Continue to Generate
-                      </Button>
-                    </div>
-                  )}
-                </div>
-
-                {/* ====== STEP 4: GENERATE ====== */}
-                <div className="border border-border rounded-lg overflow-hidden" data-testid="step-4">
-                  <StepHeader
-                    stepNum={4}
-                    title="Generate Image"
-                    subtitle={result ? "Image generated" : undefined}
-                    isComplete={completedSteps.has(4)}
-                    isActive={activeStep === 4}
-                    isLocked={!completedSteps.has(3) && activeStep !== 4}
-                    onClick={() => goToStep(4)}
-                  />
-                  {activeStep === 4 && (
-                    <div className="px-4 pb-4 border-t border-border pt-4 space-y-4">
-
-                      {/* Model Selection */}
-                      <FormField
-                        control={form.control}
-                        name="model"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs font-semibold">Model</FormLabel>
-                            <div className="grid grid-cols-2 gap-1.5">
-                              {MODELS.map((m) => (
-                                <button
-                                  key={m.value}
-                                  type="button"
-                                  data-testid={`model-${m.value}`}
-                                  onClick={() => field.onChange(m.value)}
-                                  className={cn(
-                                    "flex items-center justify-between px-2.5 py-2 rounded-md border text-left transition-colors",
-                                    field.value === m.value
-                                      ? "border-primary bg-primary/10 text-foreground"
-                                      : "border-border text-muted-foreground hover:border-muted-foreground/30"
-                                  )}
-                                >
-                                  <span className="text-[11px] font-medium">{m.label}</span>
-                                  <Badge variant={field.value === m.value ? "default" : "secondary"} className="text-[9px] h-4 px-1.5">
-                                    {m.badge}
-                                  </Badge>
-                                </button>
-                              ))}
-                            </div>
-                          </FormItem>
-                        )}
-                      />
-
-                      {/* Generate Button */}
                       <Button
                         type="submit"
                         size="lg"
@@ -1542,7 +1735,6 @@ export default function GeneratorPage() {
                         )}
                       </Button>
 
-                      {/* Advanced — palette presets */}
                       <div>
                         <button
                           type="button"
@@ -1554,30 +1746,53 @@ export default function GeneratorPage() {
                           Advanced
                         </button>
                         {showAdvanced && (
-                          <div className="mt-2">
-                            <p className="text-[11px] text-muted-foreground mb-1.5">Quick palettes</p>
-                            <div className="grid grid-cols-3 gap-1">
-                              {PRESET_PALETTES.map((p) => (
-                                <button
-                                  key={p.name}
-                                  type="button"
-                                  data-testid={`palette-${p.name.toLowerCase().replace(" ", "-")}`}
-                                  onClick={() => applyPalette(p)}
-                                  className="flex flex-col items-center gap-1 p-1.5 rounded-md border border-border text-[10px] text-muted-foreground hover:border-primary/40 transition-colors"
-                                >
-                                  <div className="flex gap-0.5">
-                                    <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.primary }} />
-                                    <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.secondary }} />
-                                    <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.accent }} />
-                                  </div>
-                                  <span className="truncate w-full text-center">{p.name}</span>
-                                </button>
-                              ))}
+                          <div className="mt-2 space-y-4">
+                            <FormField
+                              control={form.control}
+                              name="customPrompt"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel className="text-xs font-semibold flex items-center gap-2">
+                                    <Settings2 className="h-3.5 w-3.5 text-muted-foreground" />
+                                    Additional Instructions
+                                  </FormLabel>
+                                  <FormControl>
+                                    <Textarea
+                                      {...field}
+                                      placeholder="e.g. rainy evening atmosphere, neon reflections..."
+                                      className="text-xs resize-none"
+                                      rows={2}
+                                      data-testid="textarea-custom-prompt"
+                                    />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+
+                            <div>
+                              <p className="text-[11px] text-muted-foreground mb-1.5">Quick palettes</p>
+                              <div className="grid grid-cols-3 gap-1">
+                                {PRESET_PALETTES.map((p) => (
+                                  <button
+                                    key={p.name}
+                                    type="button"
+                                    data-testid={`palette-${p.name.toLowerCase().replace(" ", "-")}`}
+                                    onClick={() => applyPalette(p)}
+                                    className="flex flex-col items-center gap-1 p-1.5 rounded-md border border-border text-[10px] text-muted-foreground hover:border-primary/40 transition-colors"
+                                  >
+                                    <div className="flex gap-0.5">
+                                      <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.primary }} />
+                                      <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.secondary }} />
+                                      <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.accent }} />
+                                    </div>
+                                    <span className="truncate w-full text-center">{p.name}</span>
+                                  </button>
+                                ))}
+                              </div>
                             </div>
                           </div>
                         )}
                       </div>
-
                     </div>
                   )}
                 </div>
@@ -1588,7 +1803,6 @@ export default function GeneratorPage() {
         </div>
       </div>
 
-      {/* Sticky Regenerate bar — visible after first generation */}
       {result && (
         <div className="fixed bottom-0 left-0 right-0 z-50 flex justify-center pb-5 pointer-events-none">
           <div className="pointer-events-auto flex items-center gap-3 px-4 py-2.5 rounded-full border border-border bg-background/80 backdrop-blur-md shadow-lg">

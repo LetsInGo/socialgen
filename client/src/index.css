@@ -140,25 +140,32 @@
 }
 
 @keyframes shimmer {
-  0% {
-    background-position: -200% 0;
+  0%, 100% {
+    opacity: 1;
   }
-  100% {
-    background-position: 200% 0;
+  50% {
+    opacity: 0.5;
   }
 }
 
 .skeleton-shimmer {
-  background: linear-gradient(
-    90deg,
-    hsl(var(--muted)) 0%,
-    hsl(var(--muted) / 0.5) 40%,
-    hsl(var(--muted) / 0.3) 50%,
-    hsl(var(--muted) / 0.5) 60%,
-    hsl(var(--muted)) 100%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 2s ease-in-out infinite;
+  background: hsl(var(--muted));
+  animation: shimmer 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes image-reveal {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.image-reveal {
+  animation: image-reveal 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 @layer base {
