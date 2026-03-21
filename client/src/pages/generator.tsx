@@ -17,7 +17,7 @@ import {
   Wand2, Download, Copy, Loader2, Sparkles, ChevronDown, ChevronUp,
   Globe, Check, AlertCircle, Crosshair,
   Palette, Settings2, MapPin, FileText, RefreshCw, Zap, Image as ImageIcon,
-  X, Pencil, Type, ArrowUp, ArrowDown, Minus, Plus, GripHorizontal,
+  X, Type, ArrowUp, ArrowDown, Minus, Plus, GripHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -223,11 +223,12 @@ export default function GeneratorPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Step state: 1=extract, 2=confirm, 3=style preview, 4=select & configure
   const [activeStep, setActiveStep] = useState(1);
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
 
+  // Result
   const [result, setResult] = useState<GeneratedResult | null>(null);
-  const [previewResult, setPreviewResult] = useState<GeneratedResult | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [generatedWithModel, setGeneratedWithModel] = useState<string | null>(null);
@@ -368,6 +369,7 @@ export default function GeneratorPage() {
   const goToStep = (step: number) => {
     if (step > 1 && !completedSteps.has(1)) return;
     if (step > 2 && !completedSteps.has(2)) return;
+    if (step > 3 && !completedSteps.has(3)) return;
     setActiveStep(activeStep === step ? 0 : step);
   };
 
@@ -546,34 +548,15 @@ export default function GeneratorPage() {
     },
   });
 
-  const previewMutation = useMutation({
-    mutationFn: async (data: ImageGenerationConfig) => {
-      const res = await apiRequest("POST", "/api/generate", data);
-      return res.json();
-    },
-    onSuccess: (data) => {
-      setPreviewResult(data);
-    },
-    onError: () => {},
-  });
-
-  const handleScrapeAndPreview = () => {
+  const handleScrapeAndExtract = () => {
     if (!eventUrl.trim()) {
       setScrapeError("Enter a URL first");
       return;
     }
     setScrapeError(null);
-    setPreviewResult(null);
     scrapeMutation.mutate(eventUrl.trim());
   };
 
-  useEffect(() => {
-    if (scrapeResult && !previewMutation.isPending && !previewResult) {
-      const config = form.getValues();
-      const previewConfig = { ...config, focusPrimary: ["graphic"], focusSecondary: ["industry"], focusTertiary: [], model: "gemini-2.5-flash-image" };
-      previewMutation.mutate(previewConfig);
-    }
-  }, [scrapeResult]);
 
   const handleCompleteStep1 = () => {
     completeStep(1);
@@ -583,6 +566,11 @@ export default function GeneratorPage() {
   const handleCompleteStep2 = () => {
     completeStep(2);
     setActiveStep(3);
+  };
+
+  const handleCompleteStep3 = () => {
+    completeStep(3);
+    setActiveStep(4);
   };
 
   const mutation = useMutation({
@@ -595,7 +583,7 @@ export default function GeneratorPage() {
       setGenerationError(null);
       setGeneratedWithModel(form.getValues("model"));
       queryClient.invalidateQueries({ queryKey: ["/api/history"] });
-      completeStep(3);
+      completeStep(4);
     },
     onError: (error: any) => {
       setGenerationError(error.message || "Something went wrong. Please try again.");
@@ -721,17 +709,16 @@ export default function GeneratorPage() {
     toast({ title: "Prompt copied to clipboard" });
   }, [result, toast]);
 
-  const displayResult = result || previewResult;
-
+  // Step subtitles
   const step1Subtitle = scrapeResult
     ? scrapeResult.eventName || "Website analyzed"
     : undefined;
 
-  const step2Subtitle = completedSteps.has(2) ? "Confirmed" : undefined;
+  const step2Subtitle = completedSteps.has(2) ? "Colors & overlays confirmed" : undefined;
 
   const currentStyle = form.watch("style");
   const styleObj = STYLES.find((s) => s.value === currentStyle);
-  const step3Subtitle = completedSteps.has(3) ? (result ? `${styleObj?.label} — Generated` : styleObj?.label) : undefined;
+  const step3Subtitle = completedSteps.has(3) ? styleObj?.label : undefined;
 
   return (
     <div className="min-h-full bg-background">
@@ -745,7 +732,7 @@ export default function GeneratorPage() {
                 <h1 className="text-lg font-bold tracking-tight" data-testid="text-page-title">Nano Banana Studio</h1>
                 <p className="text-xs text-muted-foreground">Social media background generator</p>
               </div>
-              {displayResult && (
+              {result && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -767,12 +754,12 @@ export default function GeneratorPage() {
               )}
               data-testid="preview-area"
             >
-              {(mutation.isPending || previewMutation.isPending) ? (
+              {mutation.isPending ? (
                 <div className="absolute inset-0 skeleton-shimmer flex flex-col items-center justify-center gap-4">
                   <Loader2 className="h-10 w-10 animate-spin text-primary/60" />
                   <div className="text-center">
                     <p className="text-sm font-medium text-foreground/80" data-testid="text-loading">
-                      {previewMutation.isPending ? "Generating preview..." : "Creating your background..."}
+                      Creating your background...
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">This usually takes 15-30 seconds</p>
                   </div>
@@ -801,11 +788,10 @@ export default function GeneratorPage() {
                     </div>
                   </div>
                 </div>
-              ) : displayResult ? (
+              ) : result ? (
                 <>
                   <img
-                    key={displayResult.id}
-                    src={`data:${displayResult.mimeType};base64,${displayResult.imageData}`}
+                    src={`data:${result.mimeType};base64,${result.imageData}`}
                     alt="Generated social background"
                     className="w-full h-full object-cover image-reveal"
                     data-testid="img-generated"
@@ -877,11 +863,18 @@ export default function GeneratorPage() {
                       </button>
                     </div>
                   ))}
-                  {!result && previewResult && (
-                    <div className="absolute top-2 right-2 bg-background/80 border border-border rounded px-2 py-1 text-[10px] text-muted-foreground">
-                      Preview — based on header graphic
-                    </div>
-                  )}
+                </>
+              ) : scrapeResult?.screenshot ? (
+                <>
+                  <img
+                    src={`data:image/png;base64,${scrapeResult.screenshot}`}
+                    alt="Website screenshot"
+                    className="w-full h-full object-cover opacity-80"
+                    data-testid="img-screenshot-preview"
+                  />
+                  <div className="absolute top-2 right-2 bg-background/80 border border-border rounded px-2 py-1 text-[10px] text-muted-foreground">
+                    Website screenshot — your generated image will replace this
+                  </div>
                 </>
               ) : (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-muted-foreground">
@@ -896,7 +889,8 @@ export default function GeneratorPage() {
               )}
             </div>
 
-            {displayResult && (
+            {/* Overlay restore buttons */}
+            {result && (
               <div className="flex items-center gap-3 flex-wrap">
                 {logoSrc && !showLogo && (
                   <button
@@ -924,7 +918,7 @@ export default function GeneratorPage() {
               </div>
             )}
 
-            {displayResult && activeOverlayId && textOverlays.find((o) => o.id === activeOverlayId && o.visible) && (() => {
+            {result && activeOverlayId && textOverlays.find((o) => o.id === activeOverlayId && o.visible) && (() => {
               const ao = textOverlays.find((o) => o.id === activeOverlayId)!;
               return (
                 <div className="flex items-center gap-2 px-2 py-1.5 rounded-md border border-primary/30 bg-muted/30" data-testid={`overlay-controls-${ao.id}`}>
@@ -990,9 +984,9 @@ export default function GeneratorPage() {
           {/* ===== STEPPER PANEL (RIGHT — scrolls independently) ===== */}
           <div className="order-1 xl:order-2 xl:max-h-[calc(100vh-5rem)] xl:overflow-y-auto">
             <Form {...form}>
-              <form onSubmit={(e) => { if (activeStep !== 3) { e.preventDefault(); return; } form.handleSubmit(onSubmit)(e); }} className="space-y-2">
+              <form onSubmit={(e) => { if (activeStep !== 4) { e.preventDefault(); return; } form.handleSubmit(onSubmit)(e); }} className="space-y-2">
 
-                {/* ====== STEP 1: EXTRACTION ====== */}
+                {/* ====== STEP 1: EXTRACT ====== */}
                 <div className="border border-border rounded-lg overflow-hidden" data-testid="step-1">
                   <StepHeader
                     stepNum={1}
@@ -1014,13 +1008,13 @@ export default function GeneratorPage() {
                             placeholder="https://example.com"
                             className="text-sm flex-1 h-9"
                             data-testid="input-event-url"
-                            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleScrapeAndPreview(); } }}
+                            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleScrapeAndExtract(); } }}
                           />
                           <Button
                             type="button"
                             variant="secondary"
                             size="sm"
-                            onClick={handleScrapeAndPreview}
+                            onClick={handleScrapeAndExtract}
                             disabled={scrapeMutation.isPending}
                             className="h-9 px-3 flex-shrink-0"
                             data-testid="button-scrape"
@@ -1041,7 +1035,7 @@ export default function GeneratorPage() {
                               <p className="text-xs text-destructive font-medium">Couldn't analyze that URL</p>
                               <p className="text-[11px] text-muted-foreground mt-0.5">{scrapeError}</p>
                             </div>
-                            <Button type="button" size="sm" variant="ghost" className="h-6 text-xs px-2" onClick={handleScrapeAndPreview} data-testid="button-retry-scrape">
+                            <Button type="button" size="sm" variant="ghost" className="h-6 text-xs px-2" onClick={handleScrapeAndExtract} data-testid="button-retry-scrape">
                               Retry
                             </Button>
                           </div>
@@ -1055,6 +1049,28 @@ export default function GeneratorPage() {
                             <Check className="h-4 w-4 text-primary" />
                             <p className="text-xs font-medium" data-testid="text-event-name">{scrapeResult.eventName || "Website analyzed"}</p>
                           </div>
+                          {scrapeResult.industry && (
+                            <div className="flex items-center gap-2 text-[11px]">
+                              <span className="text-muted-foreground">Industry:</span>
+                              <span className="font-medium text-foreground" data-testid="text-extracted-industry">{scrapeResult.industry}</span>
+                            </div>
+                          )}
+                          {scrapeResult.allColors && scrapeResult.allColors.length > 0 && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] text-muted-foreground">Colors:</span>
+                              <div className="flex gap-1">
+                                {scrapeResult.allColors.slice(0, 5).map((c, i) => (
+                                  <div
+                                    key={i}
+                                    className="w-5 h-5 rounded border border-border"
+                                    style={{ backgroundColor: c.hex }}
+                                    title={c.hex}
+                                    data-testid={`step1-color-${i}`}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          )}
                           <p className="text-[11px] text-muted-foreground">Extraction complete — continue to review details</p>
                           <Button
                             type="button"
@@ -1087,11 +1103,11 @@ export default function GeneratorPage() {
                   )}
                 </div>
 
-                {/* ====== STEP 2: CONFIRM EXTRACTION ====== */}
+                {/* ====== STEP 2: CONFIRM ====== */}
                 <div className="border border-border rounded-lg overflow-hidden" data-testid="step-2">
                   <StepHeader
                     stepNum={2}
-                    title="Confirm Extraction"
+                    title="Confirm"
                     subtitle={step2Subtitle}
                     isComplete={completedSteps.has(2)}
                     isActive={activeStep === 2}
@@ -1118,8 +1134,8 @@ export default function GeneratorPage() {
                           <div>
                             <p className="text-xs font-semibold mb-2">Brand Colors</p>
                             {scrapeResult.allColors && scrapeResult.allColors.length > 0 && (
-                              <div className="mb-3">
-                                <p className="text-[10px] text-muted-foreground mb-1.5">Detected colors — click a swatch to reassign</p>
+                              <div className="mt-2">
+                                <p className="text-[10px] text-muted-foreground mb-1.5">Detected colors — click to reassign</p>
                                 <div className="flex flex-wrap gap-1.5">
                                   {scrapeResult.allColors.map((c, i) => (
                                     <button
@@ -1482,7 +1498,7 @@ export default function GeneratorPage() {
                             data-testid="button-step2-continue-manual"
                           >
                             <Check className="h-4 w-4" />
-                            Continue to Style & Generate
+                            Continue to Style Preview
                           </Button>
                         </div>
                       )}
@@ -1490,11 +1506,11 @@ export default function GeneratorPage() {
                   )}
                 </div>
 
-                {/* ====== STEP 3: STYLE + GENERATE (COMBINED) ====== */}
+                {/* ====== STEP 3: STYLE PREVIEW ====== */}
                 <div className="border border-border rounded-lg overflow-hidden" data-testid="step-3">
                   <StepHeader
                     stepNum={3}
-                    title="Style & Generate"
+                    title="Style Preview"
                     subtitle={step3Subtitle}
                     isComplete={completedSteps.has(3)}
                     isActive={activeStep === 3}
@@ -1503,7 +1519,6 @@ export default function GeneratorPage() {
                   />
                   {activeStep === 3 && (
                     <div className="px-4 pb-4 border-t border-border pt-4 space-y-4">
-
                       <FormField
                         control={form.control}
                         name="style"
@@ -1587,39 +1602,6 @@ export default function GeneratorPage() {
 
                       <FormField
                         control={form.control}
-                        name="colorProminence"
-                        render={({ field }) => {
-                          const pv = field.value as number;
-                          const pLabel = pv <= 20 ? "Subtle tint" : pv <= 40 ? "Soft presence" : pv <= 60 ? "Balanced" : pv <= 80 ? "Bold" : "Color dominant";
-                          const pc = form.getValues("primaryColor") || "#0A84FF";
-                          const sc = form.getValues("secondaryColor") || "#0B1F3B";
-                          const ac = form.getValues("accentColor") || "#64D2FF";
-                          const pOpacity = Math.round(Math.max(10, Math.min(100, pv * 1.0)));
-                          return (
-                          <FormItem>
-                            <div className="flex items-center justify-between mb-1">
-                              <FormLabel className="text-xs font-semibold flex items-center gap-2">
-                                <Palette className="h-3.5 w-3.5 text-muted-foreground" />
-                                Brand Color Prominence
-                              </FormLabel>
-                              <span className="text-[10px] font-medium text-muted-foreground">{pLabel}</span>
-                            </div>
-                            <div
-                              className="h-6 rounded-md mb-2 border border-border overflow-hidden transition-all"
-                              style={{
-                                background: `linear-gradient(90deg, ${pc}${pOpacity.toString(16).padStart(2, "0")} 0%, ${sc}${pOpacity.toString(16).padStart(2, "0")} 50%, ${ac}${pOpacity.toString(16).padStart(2, "0")} 100%)`,
-                              }}
-                              data-testid="prominence-preview-bar"
-                            />
-                            <Slider min={0} max={100} step={5} value={[pv]} onValueChange={([v]) => field.onChange(v)} data-testid="slider-colorProminence" />
-                            <p className="text-[10px] text-muted-foreground mt-1">{pv}% — {pLabel}</p>
-                          </FormItem>
-                          );
-                        }}
-                      />
-
-                      <FormField
-                        control={form.control}
                         name="aspectRatio"
                         render={({ field }) => (
                           <FormItem>
@@ -1643,37 +1625,34 @@ export default function GeneratorPage() {
                         )}
                       />
 
-                      <FormField
-                        control={form.control}
-                        name="model"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs font-semibold">Model</FormLabel>
-                            <div className="grid grid-cols-2 gap-1.5">
-                              {MODELS.map((m) => (
-                                <button
-                                  key={m.value}
-                                  type="button"
-                                  data-testid={`model-${m.value}`}
-                                  onClick={() => field.onChange(m.value)}
-                                  className={cn(
-                                    "flex items-center justify-between px-2.5 py-2 rounded-md border text-left transition-colors",
-                                    field.value === m.value
-                                      ? "border-primary bg-primary/10 text-foreground"
-                                      : "border-border text-muted-foreground hover:border-muted-foreground/30"
-                                  )}
-                                >
-                                  <span className="text-[11px] font-medium">{m.label}</span>
-                                  <Badge variant={field.value === m.value ? "default" : "secondary"} className="text-[9px] h-4 px-1.5">
-                                    {m.badge}
-                                  </Badge>
-                                </button>
-                              ))}
-                            </div>
-                          </FormItem>
-                        )}
-                      />
+                      <Button
+                        type="button"
+                        className="w-full h-9"
+                        onClick={handleCompleteStep3}
+                        data-testid="button-step3-continue"
+                      >
+                        <Check className="h-4 w-4" />
+                        Continue to Configure
+                      </Button>
+                    </div>
+                  )}
+                </div>
 
+                {/* ====== STEP 4: SELECT & CONFIGURE ====== */}
+                <div className="border border-border rounded-lg overflow-hidden" data-testid="step-4">
+                  <StepHeader
+                    stepNum={4}
+                    title="Select & Configure"
+                    subtitle={result ? "Image generated" : undefined}
+                    isComplete={completedSteps.has(4)}
+                    isActive={activeStep === 4}
+                    isLocked={!completedSteps.has(3) && activeStep !== 4}
+                    onClick={() => goToStep(4)}
+                  />
+                  {activeStep === 4 && (
+                    <div className="px-4 pb-4 border-t border-border pt-4 space-y-4">
+
+                      {/* Focus Priority — three-level dropdowns */}
                       <div>
                         <div className="flex items-center gap-2 mb-3">
                           <Crosshair className="h-3.5 w-3.5 text-muted-foreground" />
@@ -1713,8 +1692,74 @@ export default function GeneratorPage() {
                         </div>
                       </div>
 
+                      <FormField
+                        control={form.control}
+                        name="colorProminence"
+                        render={({ field }) => {
+                          const pv = field.value as number;
+                          const pLabel = pv <= 20 ? "Subtle tint" : pv <= 40 ? "Soft presence" : pv <= 60 ? "Balanced" : pv <= 80 ? "Bold" : "Color dominant";
+                          const pc = form.getValues("primaryColor") || "#0A84FF";
+                          const sc = form.getValues("secondaryColor") || "#0B1F3B";
+                          const ac = form.getValues("accentColor") || "#64D2FF";
+                          const pOpacity = Math.round(Math.max(10, Math.min(100, pv * 1.0)));
+                          return (
+                          <FormItem>
+                            <div className="flex items-center justify-between mb-1">
+                              <FormLabel className="text-xs font-semibold flex items-center gap-2">
+                                <Palette className="h-3.5 w-3.5 text-muted-foreground" />
+                                Brand Color Prominence
+                              </FormLabel>
+                              <span className="text-[10px] font-medium text-muted-foreground">{pLabel}</span>
+                            </div>
+                            <div
+                              className="h-6 rounded-md mb-2 border border-border overflow-hidden transition-all"
+                              style={{
+                                background: `linear-gradient(90deg, ${pc}${pOpacity.toString(16).padStart(2, "0")} 0%, ${sc}${pOpacity.toString(16).padStart(2, "0")} 50%, ${ac}${pOpacity.toString(16).padStart(2, "0")} 100%)`,
+                              }}
+                              data-testid="prominence-preview-bar"
+                            />
+                            <Slider min={0} max={100} step={5} value={[pv]} onValueChange={([v]) => field.onChange(v)} data-testid="slider-colorProminence" />
+                            <p className="text-[10px] text-muted-foreground mt-1">{pv}% — {pLabel}</p>
+                          </FormItem>
+                          );
+                        }}
+                      />
+
                       <Separator />
 
+                      {/* Model Selection */}
+                      <FormField
+                        control={form.control}
+                        name="model"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs font-semibold">Model</FormLabel>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              {MODELS.map((m) => (
+                                <button
+                                  key={m.value}
+                                  type="button"
+                                  data-testid={`model-${m.value}`}
+                                  onClick={() => field.onChange(m.value)}
+                                  className={cn(
+                                    "flex items-center justify-between px-2.5 py-2 rounded-md border text-left transition-colors",
+                                    field.value === m.value
+                                      ? "border-primary bg-primary/10 text-foreground"
+                                      : "border-border text-muted-foreground hover:border-muted-foreground/30"
+                                  )}
+                                >
+                                  <span className="text-[11px] font-medium">{m.label}</span>
+                                  <Badge variant={field.value === m.value ? "default" : "secondary"} className="text-[9px] h-4 px-1.5">
+                                    {m.badge}
+                                  </Badge>
+                                </button>
+                              ))}
+                            </div>
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* Generate Button */}
                       <Button
                         type="submit"
                         size="lg"
