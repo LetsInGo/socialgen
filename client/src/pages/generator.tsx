@@ -17,7 +17,7 @@ import {
   Wand2, Download, Copy, Loader2, Sparkles, ChevronDown, ChevronUp,
   Globe, Check, AlertCircle, Crosshair,
   Palette, Settings2, MapPin, FileText, RefreshCw, Zap, Image as ImageIcon,
-  X, Type, ArrowUp, ArrowDown, Minus, Plus, GripHorizontal,
+  X, Type, ArrowUp, ArrowDown, Minus, Plus, GripHorizontal, Upload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -313,6 +313,29 @@ export default function GeneratorPage() {
   const logoResizeStart = useRef({ x: 0, y: 0, size: 120 });
   const textDragging = useRef(false);
   const textDragOffset = useRef({ x: 0, y: 0 });
+  const uploadLogoInputRef = useRef<HTMLInputElement>(null);
+
+  const handleLogoUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const src = ev.target?.result as string;
+      if (src) {
+        setLogoSrc(src);
+        setShowLogo(true);
+        if (previewRef.current) {
+          const cw = previewRef.current.clientWidth;
+          const ch = previewRef.current.clientHeight;
+          const layout = computeLayout(cw, ch);
+          setLogoSize(layout.logoSize);
+          setLogoPos(layout.logoPos);
+        }
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }, [computeLayout]);
 
   const form = useForm<ImageGenerationConfig>({
     resolver: zodResolver(imageGenerationConfigSchema),
@@ -722,6 +745,14 @@ export default function GeneratorPage() {
 
   return (
     <div className="min-h-full bg-background">
+      <input
+        ref={uploadLogoInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleLogoUpload}
+        data-testid="input-logo-upload"
+      />
       <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_400px] gap-6">
 
@@ -903,6 +934,15 @@ export default function GeneratorPage() {
                     Show logo
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => uploadLogoInputRef.current?.click()}
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
+                  data-testid="button-change-logo-preview"
+                >
+                  <Upload className="h-3.5 w-3.5" />
+                  {logoSrc ? "Change logo" : "Add logo"}
+                </button>
                 {textOverlays.filter((o) => !o.visible).map((o) => (
                   <button
                     key={o.id}
@@ -1224,20 +1264,52 @@ export default function GeneratorPage() {
                             </div>
                           </div>
 
-                          {scrapeResult.logo && logoSrc && (
-                            <div>
-                              <p className="text-xs font-semibold mb-2">Logo</p>
+                          <div>
+                            <p className="text-xs font-semibold mb-2">Logo</p>
+                            {logoSrc ? (
                               <div className="flex items-center gap-3">
                                 <img
                                   src={logoSrc}
                                   alt="Detected logo"
-                                  className="w-12 h-12 object-contain rounded border border-border bg-muted/20"
+                                  className="w-12 h-12 object-contain rounded border border-border bg-muted/20 flex-shrink-0"
                                   data-testid="img-confirm-logo"
                                 />
-                                <p className="text-[11px] text-muted-foreground">Detected from website — will be placed as an overlay</p>
+                                <div className="flex-1 min-w-0 space-y-1.5">
+                                  <p className="text-[11px] text-muted-foreground">Will be placed as an overlay on the generated image</p>
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => uploadLogoInputRef.current?.click()}
+                                      className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                                      data-testid="button-change-logo"
+                                    >
+                                      <Upload className="h-3 w-3" />
+                                      Change logo
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => { setLogoSrc(null); setShowLogo(false); }}
+                                      className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-destructive transition-colors"
+                                      data-testid="button-remove-logo-confirm"
+                                    >
+                                      <X className="h-3 w-3" />
+                                      Remove
+                                    </button>
+                                  </div>
+                                </div>
                               </div>
-                            </div>
-                          )}
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => uploadLogoInputRef.current?.click()}
+                                className="flex items-center gap-2 px-3 py-2 rounded-md border border-dashed border-border hover:border-primary/50 hover:bg-muted/30 transition-colors text-[11px] text-muted-foreground hover:text-foreground w-full"
+                                data-testid="button-upload-logo"
+                              >
+                                <Upload className="h-3.5 w-3.5 flex-shrink-0" />
+                                Upload a logo to overlay on the image
+                              </button>
+                            )}
+                          </div>
 
                           <Separator />
 
@@ -1456,6 +1528,55 @@ export default function GeneratorPage() {
                                 )}
                               />
                             ))}
+                          </div>
+
+                          <Separator />
+
+                          <div>
+                            <p className="text-xs font-semibold mb-2">Logo</p>
+                            {logoSrc ? (
+                              <div className="flex items-center gap-3">
+                                <img
+                                  src={logoSrc}
+                                  alt="Logo"
+                                  className="w-12 h-12 object-contain rounded border border-border bg-muted/20 flex-shrink-0"
+                                  data-testid="img-manual-logo"
+                                />
+                                <div className="flex-1 min-w-0 space-y-1.5">
+                                  <p className="text-[11px] text-muted-foreground">Will be overlaid on the generated image</p>
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => uploadLogoInputRef.current?.click()}
+                                      className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                                      data-testid="button-change-logo-manual"
+                                    >
+                                      <Upload className="h-3 w-3" />
+                                      Change logo
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => { setLogoSrc(null); setShowLogo(false); }}
+                                      className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-destructive transition-colors"
+                                      data-testid="button-remove-logo-manual"
+                                    >
+                                      <X className="h-3 w-3" />
+                                      Remove
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => uploadLogoInputRef.current?.click()}
+                                className="flex items-center gap-2 px-3 py-2 rounded-md border border-dashed border-border hover:border-primary/50 hover:bg-muted/30 transition-colors text-[11px] text-muted-foreground hover:text-foreground w-full"
+                                data-testid="button-upload-logo-manual"
+                              >
+                                <Upload className="h-3.5 w-3.5 flex-shrink-0" />
+                                Upload a logo to overlay on the image
+                              </button>
+                            )}
                           </div>
 
                           <Separator />
