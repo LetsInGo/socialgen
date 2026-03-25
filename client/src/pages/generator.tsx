@@ -162,7 +162,60 @@ interface TextOverlayItem {
   visible: boolean;
 }
 
+interface StylePreviewItem {
+  id: string;
+  style: string;
+  styleLabel: string;
+  focusPrimary: string[];
+  focusLabel: string;
+  imageData: string | null;
+  mimeType: string;
+  status: "loading" | "done" | "error";
+}
+
 type ColorRole = "primary" | "secondary" | "accent";
+
+function buildPreviewCombos(scrape: ScrapeResult): Array<{
+  id: string;
+  style: string;
+  styleLabel: string;
+  focusPrimary: string[];
+  focusLabel: string;
+}> {
+  const detectedStyle = scrape.style || "gradient";
+  const hasCity = !!scrape.city;
+  const hasTheme = !!scrape.theme;
+  const hasVenue = !!scrape.venue;
+
+  const ALL_STYLES = ["photorealistic", "gradient", "abstract", "minimalist", "illustration", "editorial"];
+  const STYLE_LABELS: Record<string, string> = {
+    photorealistic: "Photorealistic", gradient: "Gradient", abstract: "Abstract",
+    minimalist: "Minimalist", illustration: "Illustration", editorial: "Editorial",
+  };
+  const pool = [detectedStyle, ...ALL_STYLES.filter(s => s !== detectedStyle)];
+  const pick4 = pool.slice(0, 4);
+
+  const focusOptions = [
+    { key: "industry", label: "Industry", available: true },
+    { key: "city", label: "City", available: hasCity },
+    { key: "venue", label: "Venue", available: hasVenue },
+    { key: "theme", label: "Theme", available: hasTheme },
+  ];
+  const bestFocus = (preferred: string[]) => {
+    for (const p of preferred) {
+      const opt = focusOptions.find(o => o.key === p && o.available);
+      if (opt) return { key: opt.key, label: opt.label };
+    }
+    return { key: "industry", label: "Industry" };
+  };
+
+  return [
+    { id: "p1", style: pick4[0], styleLabel: STYLE_LABELS[pick4[0]] || pick4[0], ...(() => { const f = bestFocus(["industry"]); return { focusPrimary: [f.key], focusLabel: f.label }; })() },
+    { id: "p2", style: pick4[1], styleLabel: STYLE_LABELS[pick4[1]] || pick4[1], ...(() => { const f = bestFocus(["city", "venue", "theme", "industry"]); return { focusPrimary: [f.key], focusLabel: f.label }; })() },
+    { id: "p3", style: pick4[2], styleLabel: STYLE_LABELS[pick4[2]] || pick4[2], ...(() => { const f = bestFocus(["theme", "venue", "city", "industry"]); return { focusPrimary: [f.key], focusLabel: f.label }; })() },
+    { id: "p4", style: pick4[3], styleLabel: STYLE_LABELS[pick4[3]] || pick4[3], ...(() => { const f = bestFocus(["venue", "theme", "city", "industry"]); return { focusPrimary: [f.key], focusLabel: f.label }; })() },
+  ];
+}
 
 
 function StepHeader({
@@ -305,6 +358,60 @@ export default function GeneratorPage() {
   };
 
   const [assigningColor, setAssigningColor] = useState<string | null>(null);
+
+  const [stylePreviews, setStylePreviews] = useState<StylePreviewItem[]>([]);
+  const [selectedPreviewId, setSelectedPreviewId] = useState<string | null>(null);
+
+  const generateStylePreviews = useCallback(async (scrape: ScrapeResult) => {
+    const combos = buildPreviewCombos(scrape);
+    setStylePreviews(combos.map(c => ({
+      id: c.id,
+      style: c.style,
+      styleLabel: c.styleLabel,
+      focusPrimary: c.focusPrimary,
+      focusLabel: c.focusLabel,
+      imageData: null,
+      mimeType: "image/png",
+      status: "loading" as const,
+    })));
+    setSelectedPreviewId(null);
+
+    combos.forEach(async (combo) => {
+      try {
+        const config = {
+          industry: scrape.industry || "Technology / SaaS",
+          aspectRatio: "16:9",
+          style: combo.style,
+          primaryColor: scrape.primaryColor || "#0A84FF",
+          secondaryColor: scrape.secondaryColor || "#0B1F3B",
+          accentColor: scrape.accentColor || "#64D2FF",
+          focusPrimary: combo.focusPrimary,
+          focusSecondary: [],
+          focusTertiary: [],
+          colorProminence: 50,
+          city: scrape.city || "",
+          venue: scrape.venue || "",
+          theme: scrape.theme || "",
+          customPrompt: scrape.customPrompt || "",
+          model: "gemini-2.5-flash-image",
+        };
+        const res = await fetch("/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(config),
+        });
+        if (!res.ok) throw new Error("failed");
+        const data = await res.json();
+        setStylePreviews(prev => prev.map(p =>
+          p.id === combo.id ? { ...p, imageData: data.imageData, mimeType: data.mimeType, status: "done" } : p
+        ));
+      } catch {
+        setStylePreviews(prev => prev.map(p =>
+          p.id === combo.id ? { ...p, status: "error" } : p
+        ));
+      }
+    });
+  }, []);
 
   const previewRef = useRef<HTMLDivElement>(null);
   const logoDragging = useRef(false);
@@ -565,6 +672,8 @@ export default function GeneratorPage() {
           ? `Extracted details from "${data.eventName}"`
           : "Form auto-filled from website data",
       });
+
+      generateStylePreviews(data);
     },
     onError: (error: any) => {
       setScrapeError(error.message || "Check the URL and try again.");
@@ -577,6 +686,8 @@ export default function GeneratorPage() {
       return;
     }
     setScrapeError(null);
+    setStylePreviews([]);
+    setSelectedPreviewId(null);
     scrapeMutation.mutate(eventUrl.trim());
   };
 
@@ -775,6 +886,27 @@ export default function GeneratorPage() {
                 </Button>
               )}
             </div>
+            {stylePreviews.length > 0 && !result && (
+              <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground px-0.5" data-testid="next-step-flow">
+                <span className="font-medium text-foreground">Next:</span>
+                {[
+                  { n: 2, label: "Confirm details" },
+                  { n: 3, label: "Pick style" },
+                  { n: 4, label: "Configure & generate" },
+                ].map((s, i) => (
+                  <span key={s.n} className="flex items-center gap-1">
+                    {i > 0 && <span className="text-border">→</span>}
+                    <span className={cn(
+                      "flex items-center gap-1 px-1.5 py-0.5 rounded-full",
+                      activeStep === s.n ? "bg-primary/15 text-primary font-medium" : "text-muted-foreground"
+                    )}>
+                      <span className="w-3.5 h-3.5 rounded-full bg-muted flex items-center justify-center text-[8px] font-bold leading-none">{s.n}</span>
+                      {s.label}
+                    </span>
+                  </span>
+                ))}
+              </div>
+            )}
 
             <div
               ref={previewRef}
@@ -895,6 +1027,53 @@ export default function GeneratorPage() {
                     </div>
                   ))}
                 </>
+              ) : stylePreviews.length > 0 ? (
+                <div className="absolute inset-0 grid grid-cols-2 grid-rows-2 gap-0.5 p-0.5" data-testid="style-previews-grid">
+                  {stylePreviews.map((p) => (
+                    <div
+                      key={p.id}
+                      className={cn(
+                        "relative overflow-hidden rounded-sm cursor-pointer group transition-all",
+                        selectedPreviewId === p.id
+                          ? "ring-2 ring-primary ring-offset-1 ring-offset-background"
+                          : "hover:ring-1 hover:ring-primary/50 hover:ring-offset-1 hover:ring-offset-background"
+                      )}
+                      onClick={() => p.status === "done" && setSelectedPreviewId(p.id)}
+                      data-testid={`style-preview-${p.id}`}
+                    >
+                      {p.status === "loading" ? (
+                        <div className="absolute inset-0 skeleton-shimmer" />
+                      ) : p.status === "error" ? (
+                        <div className="absolute inset-0 bg-muted/40 flex items-center justify-center">
+                          <AlertCircle className="h-5 w-5 text-muted-foreground/40" />
+                        </div>
+                      ) : (
+                        <img
+                          src={`data:${p.mimeType};base64,${p.imageData}`}
+                          alt={`${p.styleLabel} style preview`}
+                          className="w-full h-full object-cover"
+                        />
+                      )}
+                      <div className="absolute bottom-0 left-0 right-0 px-1.5 py-1 bg-black/60 flex items-center justify-between">
+                        <span className="text-[9px] font-semibold text-white">{p.styleLabel}</span>
+                        <span className="text-[8px] text-white/70">{p.focusLabel}</span>
+                      </div>
+                      {selectedPreviewId === p.id && (
+                        <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+                          <Check className="h-2.5 w-2.5 text-primary-foreground" />
+                        </div>
+                      )}
+                      {p.status === "loading" && (
+                        <div className="absolute top-1 right-1">
+                          <Loader2 className="h-3 w-3 animate-spin text-white/60" />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  <div className="absolute top-1.5 left-1.5 bg-black/60 rounded px-1.5 py-0.5 text-[9px] text-white/80 pointer-events-none">
+                    Style previews — select one in Step 3
+                  </div>
+                </div>
               ) : scrapeResult?.screenshot ? (
                 <>
                   <img
@@ -904,7 +1083,7 @@ export default function GeneratorPage() {
                     data-testid="img-screenshot-preview"
                   />
                   <div className="absolute top-2 right-2 bg-background/80 border border-border rounded px-2 py-1 text-[10px] text-muted-foreground">
-                    Website screenshot — your generated image will replace this
+                    Website screenshot
                   </div>
                 </>
               ) : (
@@ -1428,7 +1607,7 @@ export default function GeneratorPage() {
                             data-testid="button-step2-continue"
                           >
                             <Check className="h-4 w-4" />
-                            Looks good, continue
+                            Looks good — continue to Pick Style
                           </Button>
                         </>
                       ) : (
@@ -1619,7 +1798,7 @@ export default function GeneratorPage() {
                             data-testid="button-step2-continue-manual"
                           >
                             <Check className="h-4 w-4" />
-                            Continue to Style Preview
+                            Continue to Pick Style
                           </Button>
                         </div>
                       )}
@@ -1627,11 +1806,11 @@ export default function GeneratorPage() {
                   )}
                 </div>
 
-                {/* ====== STEP 3: STYLE PREVIEW ====== */}
+                {/* ====== STEP 3: PICK STYLE ====== */}
                 <div className="border border-border rounded-lg overflow-hidden" data-testid="step-3">
                   <StepHeader
                     stepNum={3}
-                    title="Style Preview"
+                    title="Pick Style"
                     subtitle={step3Subtitle}
                     isComplete={completedSteps.has(3)}
                     isActive={activeStep === 3}
@@ -1640,86 +1819,129 @@ export default function GeneratorPage() {
                   />
                   {activeStep === 3 && (
                     <div className="px-4 pb-4 border-t border-border pt-4 space-y-4">
-                      <FormField
-                        control={form.control}
-                        name="style"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs font-semibold">Style</FormLabel>
-                            <div className="grid grid-cols-2 gap-2">
-                              {STYLES.map((s) => (
+
+                      {stylePreviews.length > 0 ? (
+                        <div className="space-y-2">
+                          <p className="text-[11px] text-muted-foreground">Select a style from the previews on the left — or choose from the list below</p>
+                          <div className="space-y-1.5">
+                            {stylePreviews.map((p) => {
+                              const isSelected = selectedPreviewId === p.id || form.watch("style") === p.style;
+                              return (
                                 <button
-                                  key={s.value}
+                                  key={p.id}
                                   type="button"
-                                  onClick={() => field.onChange(s.value)}
+                                  onClick={() => {
+                                    if (p.status !== "done") return;
+                                    setSelectedPreviewId(p.id);
+                                    form.setValue("style", p.style);
+                                    form.setValue("focusPrimary", p.focusPrimary);
+                                    setFocusLvl1(p.focusPrimary[0] || "industry");
+                                    setFocusLvl2("none");
+                                    setFocusLvl3("none");
+                                    form.setValue("focusSecondary", []);
+                                    form.setValue("focusTertiary", []);
+                                  }}
+                                  disabled={p.status === "error"}
                                   className={cn(
-                                    "relative rounded-lg border-2 overflow-hidden text-left transition-all",
-                                    field.value === s.value
-                                      ? "border-primary ring-2 ring-primary/30"
-                                      : "border-border hover:border-muted-foreground/30"
+                                    "w-full flex items-center gap-3 px-3 py-2 rounded-lg border-2 text-left transition-all",
+                                    isSelected
+                                      ? "border-primary bg-primary/5"
+                                      : p.status === "loading"
+                                        ? "border-border opacity-60 cursor-wait"
+                                        : p.status === "error"
+                                          ? "border-border opacity-40 cursor-not-allowed"
+                                          : "border-border hover:border-primary/40 hover:bg-muted/30"
                                   )}
-                                  data-testid={`style-option-${s.value}`}
+                                  data-testid={`pick-style-${p.id}`}
                                 >
-                                  <div className={cn("h-16 w-full bg-gradient-to-br", s.gradient, "relative flex items-center justify-center overflow-hidden")}>
-                                    {s.value === "photorealistic" && (
-                                      <div className="absolute inset-0" style={{ backgroundImage: "radial-gradient(ellipse at 70% 30%, rgba(255,255,255,0.35) 0%, transparent 50%), radial-gradient(ellipse at 20% 80%, rgba(0,0,0,0.3) 0%, transparent 50%)" }}>
-                                        <div className="absolute bottom-0 left-0 right-0 h-[40%]" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.4), transparent)" }} />
-                                        <div className="absolute w-3 h-4 rounded-sm bg-white/20 top-2 left-[45%]" />
-                                        <div className="absolute w-5 h-3 rounded-sm bg-white/15 top-3 left-[55%]" />
-                                      </div>
-                                    )}
-                                    {s.value === "illustration" && (
-                                      <div className="absolute inset-0">
-                                        <div className="absolute w-6 h-6 rounded-full border-2 border-white/25 top-1 left-2" />
-                                        <div className="absolute w-4 h-4 rounded-full bg-white/15 top-3 right-4" />
-                                        <div className="absolute bottom-1 left-4 right-4 h-[1px] bg-white/20" />
-                                        <div className="absolute bottom-3 left-6 right-6 h-[1px] bg-white/15" />
-                                        <svg className="absolute bottom-0 left-0 w-full h-8 opacity-20" viewBox="0 0 100 30"><path d="M0 25 Q 15 10 30 20 T 60 15 T 100 20 V30 H0Z" fill="white"/></svg>
-                                      </div>
-                                    )}
-                                    {s.value === "abstract" && (
-                                      <div className="absolute inset-0">
-                                        <div className="absolute w-10 h-10 rounded-full bg-white/10 -top-2 -left-2" />
-                                        <div className="absolute w-6 h-6 rotate-45 bg-white/15 top-1 right-3" />
-                                        <div className="absolute w-14 h-[2px] bg-white/20 top-8 left-4 rotate-[-20deg]" />
-                                        <div className="absolute w-4 h-4 rounded-full border border-white/20 bottom-2 left-[40%]" />
-                                      </div>
-                                    )}
-                                    {s.value === "minimalist" && (
-                                      <div className="absolute inset-0 flex items-center justify-center">
-                                        <div className="w-[60%] h-[1px] bg-white/25 absolute top-5" />
-                                        <div className="w-5 h-5 border border-white/30 rounded-full" />
-                                        <div className="absolute bottom-3 left-[20%] w-[30%] h-[1px] bg-white/15" />
-                                      </div>
-                                    )}
-                                    {s.value === "gradient" && (
-                                      <div className="absolute inset-0" style={{ backgroundImage: `radial-gradient(circle at 25% 40%, ${s.accent}aa, transparent 50%), radial-gradient(circle at 75% 60%, rgba(255,255,255,0.15), transparent 45%), linear-gradient(135deg, transparent 30%, rgba(255,255,255,0.08) 50%, transparent 70%)` }} />
-                                    )}
-                                    {s.value === "editorial" && (
-                                      <div className="absolute inset-0">
-                                        <div className="absolute left-2 top-2 bottom-2 w-[2px] rounded-full" style={{ backgroundColor: `${s.accent}cc` }} />
-                                        <div className="absolute top-3 left-5 right-3 h-[2px] bg-white/25" />
-                                        <div className="absolute top-6 left-5 w-[40%] h-[1.5px] bg-white/15" />
-                                        <div className="absolute bottom-3 left-5 right-3 h-[2px] bg-white/20" />
-                                      </div>
-                                    )}
-                                    {field.value === s.value && (
-                                      <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center z-10">
-                                        <Check className="h-3 w-3 text-primary-foreground" />
+                                  <div className="w-14 h-9 rounded overflow-hidden flex-shrink-0 border border-border bg-muted/20">
+                                    {p.status === "done" && p.imageData ? (
+                                      <img src={`data:${p.mimeType};base64,${p.imageData}`} alt={p.styleLabel} className="w-full h-full object-cover" />
+                                    ) : p.status === "loading" ? (
+                                      <div className="w-full h-full skeleton-shimmer" />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center">
+                                        <AlertCircle className="h-3 w-3 text-muted-foreground/40" />
                                       </div>
                                     )}
                                   </div>
-                                  <div className="px-2 py-1.5 bg-card">
-                                    <p className="text-xs font-semibold">{s.label}</p>
-                                    <p className="text-[10px] text-muted-foreground">{s.desc}</p>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-semibold">{p.styleLabel}</p>
+                                    <p className="text-[10px] text-muted-foreground">Focus: {p.focusLabel}</p>
                                   </div>
+                                  {p.status === "loading" && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground flex-shrink-0" />}
+                                  {isSelected && p.status === "done" && <Check className="h-3.5 w-3.5 text-primary flex-shrink-0" />}
                                 </button>
-                              ))}
-                            </div>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                              );
+                            })}
+                          </div>
+                          <Separator />
+                          <p className="text-[10px] text-muted-foreground">Or choose any style:</p>
+                          <FormField
+                            control={form.control}
+                            name="style"
+                            render={({ field }) => (
+                              <FormItem>
+                                <div className="grid grid-cols-3 gap-1">
+                                  {STYLES.map((s) => (
+                                    <button
+                                      key={s.value}
+                                      type="button"
+                                      onClick={() => { field.onChange(s.value); setSelectedPreviewId(null); }}
+                                      className={cn(
+                                        "px-2 py-1.5 rounded border text-xs transition-colors text-left",
+                                        field.value === s.value && !stylePreviews.some(p => p.id === selectedPreviewId && p.style === s.value)
+                                          ? "border-primary bg-primary/10 text-foreground font-medium"
+                                          : "border-border text-muted-foreground hover:border-primary/40"
+                                      )}
+                                      data-testid={`style-option-${s.value}`}
+                                    >
+                                      {s.label}
+                                    </button>
+                                  ))}
+                                </div>
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      ) : (
+                        <FormField
+                          control={form.control}
+                          name="style"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-xs font-semibold">Style</FormLabel>
+                              <div className="grid grid-cols-2 gap-2">
+                                {STYLES.map((s) => (
+                                  <button
+                                    key={s.value}
+                                    type="button"
+                                    onClick={() => field.onChange(s.value)}
+                                    className={cn(
+                                      "relative rounded-lg border-2 overflow-hidden text-left transition-all",
+                                      field.value === s.value ? "border-primary ring-2 ring-primary/30" : "border-border hover:border-muted-foreground/30"
+                                    )}
+                                    data-testid={`style-option-${s.value}`}
+                                  >
+                                    <div className={cn("h-14 w-full bg-gradient-to-br", s.gradient, "relative flex items-center justify-center")}>
+                                      {field.value === s.value && (
+                                        <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center z-10">
+                                          <Check className="h-3 w-3 text-primary-foreground" />
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="px-2 py-1.5 bg-card">
+                                      <p className="text-xs font-semibold">{s.label}</p>
+                                      <p className="text-[10px] text-muted-foreground">{s.desc}</p>
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
 
                       <FormField
                         control={form.control}
@@ -1759,11 +1981,11 @@ export default function GeneratorPage() {
                   )}
                 </div>
 
-                {/* ====== STEP 4: SELECT & CONFIGURE ====== */}
+                {/* ====== STEP 4: CONFIGURE & GENERATE ====== */}
                 <div className="border border-border rounded-lg overflow-hidden" data-testid="step-4">
                   <StepHeader
                     stepNum={4}
-                    title="Select & Configure"
+                    title="Configure & Generate"
                     subtitle={result ? "Image generated" : undefined}
                     isComplete={completedSteps.has(4)}
                     isActive={activeStep === 4}
