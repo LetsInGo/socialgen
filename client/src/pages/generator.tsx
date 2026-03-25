@@ -1028,89 +1028,76 @@ export default function GeneratorPage() {
                   ))}
                 </>
               ) : stylePreviews.length > 0 ? (
-                <div className="absolute inset-0 flex flex-col" data-testid="style-previews-grid">
-                  <div className="flex items-center justify-center gap-2 bg-black/80 backdrop-blur-sm py-1.5 px-3 flex-shrink-0">
+                <div
+                  className="absolute inset-0"
+                  style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "auto 1fr 1fr", gap: "2px", padding: "2px" }}
+                  data-testid="style-previews-grid"
+                >
+                  {/* Header spanning both columns */}
+                  <div className="col-span-2 flex items-center justify-center gap-2 bg-black/80 backdrop-blur-sm py-1.5 px-3 rounded-sm">
                     <span className="text-white font-bold text-sm tracking-wide">Preview of 4 Options</span>
                     <span className="text-white/50 text-[10px]">· select one in Step 3</span>
                   </div>
-                  <div className="flex-1 grid grid-cols-2 grid-rows-2 gap-0.5 p-0.5">
-                    {stylePreviews.map((p) => (
-                      <div
-                        key={p.id}
-                        className={cn(
-                          "relative overflow-hidden rounded-sm cursor-pointer group transition-all",
-                          selectedPreviewId === p.id
-                            ? "ring-2 ring-primary ring-offset-1 ring-offset-background"
-                            : "hover:ring-1 hover:ring-primary/50 hover:ring-offset-1 hover:ring-offset-background"
-                        )}
-                        onClick={() => p.status === "done" && setSelectedPreviewId(p.id)}
-                        data-testid={`style-preview-${p.id}`}
-                      >
-                        {p.status === "loading" ? (
-                          <div className="absolute inset-0 skeleton-shimmer" />
-                        ) : p.status === "error" ? (
-                          <div className="absolute inset-0 bg-muted/40 flex items-center justify-center">
-                            <AlertCircle className="h-5 w-5 text-muted-foreground/40" />
-                          </div>
-                        ) : (
-                          <img
-                            src={`data:${p.mimeType};base64,${p.imageData}`}
-                            alt={`${p.styleLabel} style preview`}
-                            className="w-full h-full object-cover"
-                          />
-                        )}
 
-                        {containerWidth > 0 && p.status === "done" && (showLogo && logoSrc || textOverlays.some(o => o.visible && o.text)) && (
-                          <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                            <div style={{ position: "absolute", left: 0, top: 0, width: containerWidth, height: Math.round(containerWidth * 9 / 16), transform: "scale(0.5)", transformOrigin: "top left" }}>
-                              {showLogo && logoSrc && (
-                                <img
-                                  src={logoSrc}
-                                  className="absolute object-contain"
-                                  style={{ left: logoPos.x, top: logoPos.y, width: logoSize, height: logoSize }}
-                                />
-                              )}
-                              {textOverlays.filter(o => o.visible && o.text).map(o => (
-                                <div
-                                  key={o.id}
-                                  style={{
-                                    position: "absolute",
-                                    left: o.pos.x,
-                                    top: o.pos.y,
-                                    fontSize: o.fontSize,
-                                    color: o.color,
-                                    fontFamily: overlayFont || "inherit",
-                                    textShadow: "0 1px 4px rgba(0,0,0,0.6), 0 0 12px rgba(0,0,0,0.4)",
-                                    fontWeight: 700,
-                                    lineHeight: 1.2,
-                                    whiteSpace: "pre-wrap",
-                                    maxWidth: containerWidth * 0.65,
-                                  }}
-                                >
-                                  {o.text}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        <div className="absolute bottom-0 left-0 right-0 px-1.5 py-1.5 bg-black/65 flex items-center justify-between">
-                          <span className="text-[11px] font-semibold text-white leading-tight">{p.styleLabel}</span>
-                          <span className="text-[10px] text-white/80 leading-tight">{p.focusLabel}</span>
+                  {/* 4 preview cards — auto-placed into the two 1fr rows */}
+                  {stylePreviews.map((p) => (
+                    <div
+                      key={p.id}
+                      className={cn(
+                        "relative overflow-hidden rounded-sm cursor-pointer transition-all",
+                        selectedPreviewId === p.id
+                          ? "ring-2 ring-primary ring-offset-1 ring-offset-background"
+                          : "hover:ring-1 hover:ring-primary/50"
+                      )}
+                      onClick={() => p.status === "done" && setSelectedPreviewId(p.id)}
+                      data-testid={`style-preview-${p.id}`}
+                    >
+                      {p.status === "loading" ? (
+                        <div className="absolute inset-0 skeleton-shimmer" />
+                      ) : p.status === "error" ? (
+                        <div className="absolute inset-0 bg-muted/40 flex items-center justify-center">
+                          <AlertCircle className="h-5 w-5 text-muted-foreground/40" />
                         </div>
-                        {selectedPreviewId === p.id && (
-                          <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-primary flex items-center justify-center">
-                            <Check className="h-2.5 w-2.5 text-primary-foreground" />
+                      ) : (
+                        <img
+                          src={`data:${p.mimeType};base64,${p.imageData}`}
+                          alt={`${p.styleLabel} style preview`}
+                          className="absolute inset-0 w-full h-full object-cover"
+                        />
+                      )}
+
+                      {/* Scaled overlays */}
+                      {containerWidth > 0 && p.status === "done" && (showLogo && logoSrc || textOverlays.some(o => o.visible && o.text)) && (
+                        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                          <div style={{ position: "absolute", left: 0, top: 0, width: containerWidth, height: Math.round(containerWidth * 9 / 16), transform: "scale(0.5)", transformOrigin: "top left" }}>
+                            {showLogo && logoSrc && (
+                              <img src={logoSrc} className="absolute object-contain" style={{ left: logoPos.x, top: logoPos.y, width: logoSize, height: logoSize }} />
+                            )}
+                            {textOverlays.filter(o => o.visible && o.text).map(o => (
+                              <div key={o.id} style={{ position: "absolute", left: o.pos.x, top: o.pos.y, fontSize: o.fontSize, color: o.color, fontFamily: overlayFont || "inherit", textShadow: "0 1px 4px rgba(0,0,0,0.6), 0 0 12px rgba(0,0,0,0.4)", fontWeight: 700, lineHeight: 1.2, whiteSpace: "pre-wrap", maxWidth: containerWidth * 0.65 }}>
+                                {o.text}
+                              </div>
+                            ))}
                           </div>
-                        )}
-                        {p.status === "loading" && (
-                          <div className="absolute top-1 right-1">
-                            <Loader2 className="h-3 w-3 animate-spin text-white/60" />
-                          </div>
-                        )}
+                        </div>
+                      )}
+
+                      <div className="absolute bottom-0 left-0 right-0 px-1.5 py-1.5 bg-black/65 flex items-center justify-between">
+                        <span className="text-[11px] font-semibold text-white leading-tight">{p.styleLabel}</span>
+                        <span className="text-[10px] text-white/80 leading-tight">{p.focusLabel}</span>
                       </div>
-                    ))}
-                  </div>
+                      {selectedPreviewId === p.id && (
+                        <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+                          <Check className="h-2.5 w-2.5 text-primary-foreground" />
+                        </div>
+                      )}
+                      {p.status === "loading" && (
+                        <div className="absolute top-1 right-1">
+                          <Loader2 className="h-3 w-3 animate-spin text-white/60" />
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               ) : scrapeResult?.screenshot ? (
                 <>
