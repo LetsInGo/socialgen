@@ -1,6 +1,6 @@
-# Nano Banana Studio
+# InGo Studio
 
-A social media background image generator powered by Google's Gemini image generation models (Nano Banana family).
+A social media background image generator powered by Google's Gemini image generation models.
 
 ## Overview
 

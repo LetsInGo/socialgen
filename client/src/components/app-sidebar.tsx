@@ -39,8 +39,8 @@ export function AppSidebar() {
             <Image className="w-5 h-5 text-primary-foreground" />
           </div>
           <div className="min-w-0">
-            <p className="font-bold text-sm leading-tight truncate">Nano Banana</p>
-            <p className="text-xs text-muted-foreground truncate">Social Image Studio</p>
+            <p className="font-bold text-sm leading-tight truncate">InGo Studio</p>
+            <p className="text-xs text-muted-foreground truncate">Social Image Generator</p>
           </div>
         </div>
       </SidebarHeader>
@@ -75,14 +75,14 @@ export function AppSidebar() {
               <div className="flex items-center gap-2 px-2 py-1.5 rounded-md">
                 <Sparkles className="h-3.5 w-3.5 text-amber-500" />
                 <div className="min-w-0">
-                  <p className="text-xs font-medium truncate">Nano Banana</p>
+                  <p className="text-xs font-medium truncate">InGo Flash</p>
                   <p className="text-xs text-muted-foreground truncate">Fast generation</p>
                 </div>
               </div>
               <div className="flex items-center gap-2 px-2 py-1.5 rounded-md">
                 <Sparkles className="h-3.5 w-3.5 text-primary" />
                 <div className="min-w-0">
-                  <p className="text-xs font-medium truncate">Nano Banana Pro</p>
+                  <p className="text-xs font-medium truncate">InGo Pro</p>
                   <p className="text-xs text-muted-foreground truncate">High fidelity</p>
                 </div>
               </div>

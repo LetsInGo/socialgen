@@ -40,9 +40,9 @@ export default function App() {
                     <SidebarTrigger data-testid="button-sidebar-toggle" />
                     <div className="flex items-center gap-2">
                       <div className="w-6 h-6 rounded-md bg-primary flex items-center justify-center">
-                        <span className="text-primary-foreground text-xs font-bold">N</span>
+                        <span className="text-primary-foreground text-xs font-bold">I</span>
                       </div>
-                      <span className="font-semibold text-sm hidden sm:block">Nano Banana Studio</span>
+                      <span className="font-semibold text-sm hidden sm:block">InGo Studio</span>
                     </div>
                   </div>
                   <ThemeToggle />
