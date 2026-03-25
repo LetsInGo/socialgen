@@ -144,6 +144,8 @@ interface ScrapeResult {
   eventDates?: string;
   city: string;
   venue: string;
+  venueType: string;
+  attendanceEstimate: string;
   theme: string;
   customPrompt: string;
   summary: string;
@@ -186,7 +188,7 @@ const STYLE_LABELS: Record<string, string> = {
 
 // Each style's natural focus affinity — the focus that visually complements the style
 const STYLE_FOCUS_AFFINITY: Record<string, string[]> = {
-  photorealistic: ["city", "venue", "industry"],
+  photorealistic: ["venue", "city", "industry"],
   editorial:      ["venue", "city", "industry"],
   abstract:       ["theme", "industry"],
   illustration:   ["theme", "industry"],
@@ -312,6 +314,7 @@ export default function GeneratorPage() {
   const [eventUrl, setEventUrl] = useState("");
   const [scrapeResult, setScrapeResult] = useState<ScrapeResult | null>(null);
   const [scrapeError, setScrapeError] = useState<string | null>(null);
+  const [attendanceEstimate, setAttendanceEstimate] = useState<string>("");
 
   const [logoSrc, setLogoSrc] = useState<string | null>(null);
   const [showLogo, setShowLogo] = useState(true);
@@ -658,7 +661,13 @@ export default function GeneratorPage() {
       if (data.secondaryColor) form.setValue("secondaryColor", data.secondaryColor);
       if (data.accentColor) form.setValue("accentColor", data.accentColor);
       form.setValue("city", data.city || "");
-      form.setValue("venue", data.venue || "");
+      const venueValue = data.venue
+        ? data.venueType
+          ? `${data.venue} (${data.venueType})`
+          : data.venue
+        : "";
+      form.setValue("venue", venueValue);
+      setAttendanceEstimate(data.attendanceEstimate || "");
       form.setValue("theme", data.theme || "");
       form.setValue("customPrompt", data.customPrompt || "");
       setFocusLvl1("industry");
@@ -1597,11 +1606,21 @@ export default function GeneratorPage() {
                                   <FormItem>
                                     <FormLabel className="text-[11px] font-medium">Venue</FormLabel>
                                     <FormControl>
-                                      <Input {...field} placeholder="e.g. Moscone Center..." className="text-xs h-8" data-testid="input-venue" />
+                                      <Input {...field} placeholder="e.g. Moscone Center (large convention center)..." className="text-xs h-8" data-testid="input-venue" />
                                     </FormControl>
                                   </FormItem>
                                 )}
                               />
+                              <div>
+                                <label className="text-[11px] font-medium block mb-1">Estimated Attendance</label>
+                                <Input
+                                  value={attendanceEstimate}
+                                  onChange={(e) => setAttendanceEstimate(e.target.value)}
+                                  placeholder="e.g. 5,000 attendees..."
+                                  className="text-xs h-8"
+                                  data-testid="input-attendance-estimate"
+                                />
+                              </div>
                             </div>
                           </div>
 
@@ -1717,11 +1736,21 @@ export default function GeneratorPage() {
                                 <FormItem>
                                   <FormLabel className="text-[11px] font-medium">Venue</FormLabel>
                                   <FormControl>
-                                    <Input {...field} placeholder="e.g. Moscone Center..." className="text-xs h-8" data-testid="input-venue-manual" />
+                                    <Input {...field} placeholder="e.g. Moscone Center (large convention center)..." className="text-xs h-8" data-testid="input-venue-manual" />
                                   </FormControl>
                                 </FormItem>
                               )}
                             />
+                            <div>
+                              <label className="text-[11px] font-medium block mb-1">Estimated Attendance</label>
+                              <Input
+                                value={attendanceEstimate}
+                                onChange={(e) => setAttendanceEstimate(e.target.value)}
+                                placeholder="e.g. 5,000 attendees..."
+                                className="text-xs h-8"
+                                data-testid="input-attendance-estimate-manual"
+                              />
+                            </div>
                           </div>
 
                           <div className="space-y-2">

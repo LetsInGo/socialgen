@@ -301,6 +301,8 @@ Respond ONLY with valid JSON (no markdown, no code fences):
   "eventDates": "the dates of the event in a short human-readable format (e.g. 'June 10-12, 2025', 'March 3, 2025'). Empty string if not found.",
   "city": "the city or location where the event takes place (empty string if not found)",
   "venue": "the specific venue or conference center name (e.g. 'Moscone Center', 'Las Vegas Convention Center'). Empty string if not found.",
+  "venueType": "the type and scale of the venue (e.g. 'large convention center', 'hotel ballroom', 'arena', 'expo hall', 'intimate boutique venue', 'outdoor festival grounds'). Look for clues in page text about capacity, layout, or venue descriptions. Empty string if not found.",
+  "attendanceEstimate": "the estimated or explicitly stated attendance or capacity for this event (e.g. '5,000 attendees', '200 person capacity', '10,000+ expected'). Infer from context if possible — speakers count, sponsorship tiers, exhibit hall size, or any mention of scale. Empty string if truly unknown.",
   "theme": "the core topic or subject matter of the event/brand (e.g. 'Artificial Intelligence & Machine Learning', 'Sustainable Finance', 'Developer Tools'). NOT the visual style — this is the conceptual theme. Empty string if unclear.",
   "customPrompt": "a brief 1-2 sentence description of the event's visual mood, theme, or atmosphere",
   "summary": "a 1-2 sentence summary of what this event/brand is about"
@@ -378,6 +380,8 @@ Rules:
           eventDates: typeof parsed.eventDates === "string" ? parsed.eventDates : "",
           city: typeof parsed.city === "string" ? parsed.city : "",
           venue: typeof parsed.venue === "string" ? parsed.venue : "",
+          venueType: typeof parsed.venueType === "string" ? parsed.venueType : "",
+          attendanceEstimate: typeof parsed.attendanceEstimate === "string" ? parsed.attendanceEstimate : "",
           theme: typeof parsed.theme === "string" ? parsed.theme : "",
           customPrompt: typeof parsed.customPrompt === "string" ? parsed.customPrompt : "",
           summary: typeof parsed.summary === "string" ? parsed.summary : "",
