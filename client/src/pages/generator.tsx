@@ -193,7 +193,7 @@ const STYLE_FOCUS_AFFINITY: Record<string, string[]> = {
   abstract:       ["theme", "industry"],
   illustration:   ["theme", "industry"],
   minimalist:     ["industry", "theme"],
-  gradient:       ["industry", "theme"],
+  gradient:       ["theme", "city", "venue"],
 };
 
 function buildPreviewCombos(scrape: ScrapeResult): Array<{
@@ -215,7 +215,7 @@ function buildPreviewCombos(scrape: ScrapeResult): Array<{
     theme:    { label: "Theme",    available: hasTheme },
   };
 
-  const ALL_STYLES = ["photorealistic", "gradient", "abstract", "minimalist", "illustration", "editorial"];
+  const ALL_STYLES = ["photorealistic", "editorial", "abstract", "minimalist", "gradient", "illustration"];
   const pool = [detectedStyle, ...ALL_STYLES.filter(s => s !== detectedStyle)];
   const pick4 = pool.slice(0, 4);
 
