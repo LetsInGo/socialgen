@@ -189,7 +189,7 @@ const STYLE_LABELS: Record<string, string> = {
 // Each style's natural focus affinity — the focus that visually complements the style
 const STYLE_FOCUS_AFFINITY: Record<string, string[]> = {
   photorealistic: ["venue", "city", "industry"],
-  editorial:      ["venue", "city", "industry"],
+  editorial:      ["venue"],
   abstract:       ["theme", "industry"],
   illustration:   ["theme", "industry"],
   minimalist:     ["industry", "theme"],
