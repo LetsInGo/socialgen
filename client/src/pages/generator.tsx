@@ -916,7 +916,7 @@ export default function GeneratorPage() {
               ref={previewRef}
               className={cn(
                 "w-full rounded-lg border border-border overflow-hidden bg-muted/20 relative",
-                ASPECT_RATIO_CSS[selectedRatio] || "aspect-video",
+                "aspect-video",
                 "min-h-[280px]"
               )}
               data-testid="preview-area"
@@ -1098,9 +1098,9 @@ export default function GeneratorPage() {
                           </div>
                         )}
 
-                        <div className="absolute bottom-0 left-0 right-0 px-1.5 py-1 bg-black/60 flex items-center justify-between">
-                          <span className="text-[9px] font-semibold text-white">{p.styleLabel}</span>
-                          <span className="text-[8px] text-white/70">{p.focusLabel}</span>
+                        <div className="absolute bottom-0 left-0 right-0 px-1.5 py-1.5 bg-black/65 flex items-center justify-between">
+                          <span className="text-[11px] font-semibold text-white leading-tight">{p.styleLabel}</span>
+                          <span className="text-[10px] text-white/80 leading-tight">{p.focusLabel}</span>
                         </div>
                         {selectedPreviewId === p.id && (
                           <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-primary flex items-center justify-center">
