@@ -875,7 +875,7 @@ export default function GeneratorPage() {
           <div className="space-y-3 order-2 xl:order-1 xl:self-start xl:sticky xl:top-4">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-lg font-bold tracking-tight" data-testid="text-page-title">Your Post Previews, Next Confirm Your Event Details</h1>
+                <h1 className="text-lg font-bold tracking-tight" data-testid="text-page-title">Your Post Previews, Now Confirm Your Event Details</h1>
                 <p className="text-xs text-muted-foreground">Social media background generator</p>
               </div>
               {result && (
