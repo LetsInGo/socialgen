@@ -43,7 +43,7 @@ const STYLE_DESCRIPTORS: Record<string, string> = {
   illustration: "digital illustration, clean vector art style, bold colors, modern graphic design aesthetic",
   abstract: "abstract art, painterly brushstrokes, fluid forms and shapes, artistic interpretation, gallery-quality",
   minimalist: "minimalist design, clean lines, generous negative space, restrained color palette, Scandinavian aesthetic",
-  gradient: "smooth gradient field, color wash, soft transitions, luminous color blending, atmospheric glow",
+  gradient: "rich luminous color-field gradient, deep painterly wash of saturated hues, velvety soft transitions with dimensional atmospheric depth, ambient light bloom and glow, bold color-field abstraction with cinematic mood",
   editorial: "editorial photography style, magazine layout, high production value, fashion-forward composition",
 };
 
@@ -159,7 +159,7 @@ function buildPrompt(config: z.infer<typeof imageGenerationConfigSchema>): strin
     sceneParts.push(`Additional atmosphere: ${config.customPrompt}.`);
   }
 
-  sceneParts.push(`Composition: Design for text overlay — leave generous negative space in the upper-center and lower regions for headlines. Use depth-of-field and atmospheric softness to ensure text readability areas. Focal interest sits at bottom-right or bottom-left, not center.`);
+  sceneParts.push(`Composition: Design for text overlay on the left and space for a headshot on the right — leave generous negative space in the upper-center and lower regions for headlines. Focal interest sits at bottom-right or bottom-left, not center.`);
 
   sceneParts.push(`Constraints: No text, no letters, no numbers, no logos, no watermarks, no readable signage. Clean export-ready background. Professional and polished.`);
 

@@ -175,6 +175,25 @@ interface StylePreviewItem {
 
 type ColorRole = "primary" | "secondary" | "accent";
 
+const STYLE_LABELS: Record<string, string> = {
+  photorealistic: "Photorealistic",
+  gradient: "Gradient",
+  abstract: "Abstract",
+  minimalist: "Minimalist",
+  illustration: "Illustration",
+  editorial: "Editorial",
+};
+
+// Each style's natural focus affinity — the focus that visually complements the style
+const STYLE_FOCUS_AFFINITY: Record<string, string[]> = {
+  photorealistic: ["city", "venue", "industry"],
+  editorial:      ["venue", "city", "industry"],
+  abstract:       ["theme", "industry"],
+  illustration:   ["theme", "industry"],
+  minimalist:     ["industry", "theme"],
+  gradient:       ["industry", "theme"],
+};
+
 function buildPreviewCombos(scrape: ScrapeResult): Array<{
   id: string;
   style: string;
@@ -187,34 +206,38 @@ function buildPreviewCombos(scrape: ScrapeResult): Array<{
   const hasTheme = !!scrape.theme;
   const hasVenue = !!scrape.venue;
 
-  const ALL_STYLES = ["photorealistic", "gradient", "abstract", "minimalist", "illustration", "editorial"];
-  const STYLE_LABELS: Record<string, string> = {
-    photorealistic: "Photorealistic", gradient: "Gradient", abstract: "Abstract",
-    minimalist: "Minimalist", illustration: "Illustration", editorial: "Editorial",
+  const FOCUS_OPTIONS: Record<string, { label: string; available: boolean }> = {
+    industry: { label: "Industry", available: true },
+    city:     { label: "City",     available: hasCity },
+    venue:    { label: "Venue",    available: hasVenue },
+    theme:    { label: "Theme",    available: hasTheme },
   };
+
+  const ALL_STYLES = ["photorealistic", "gradient", "abstract", "minimalist", "illustration", "editorial"];
   const pool = [detectedStyle, ...ALL_STYLES.filter(s => s !== detectedStyle)];
   const pick4 = pool.slice(0, 4);
 
-  const focusOptions = [
-    { key: "industry", label: "Industry", available: true },
-    { key: "city", label: "City", available: hasCity },
-    { key: "venue", label: "Venue", available: hasVenue },
-    { key: "theme", label: "Theme", available: hasTheme },
-  ];
-  const bestFocus = (preferred: string[]) => {
-    for (const p of preferred) {
-      const opt = focusOptions.find(o => o.key === p && o.available);
-      if (opt) return { key: opt.key, label: opt.label };
+  // For each style, resolve the best available focus using the style's affinity list
+  const bestFocusForStyle = (style: string) => {
+    const preferred = STYLE_FOCUS_AFFINITY[style] || ["industry"];
+    for (const key of preferred) {
+      if (FOCUS_OPTIONS[key]?.available) {
+        return { key, label: FOCUS_OPTIONS[key].label };
+      }
     }
     return { key: "industry", label: "Industry" };
   };
 
-  return [
-    { id: "p1", style: pick4[0], styleLabel: STYLE_LABELS[pick4[0]] || pick4[0], ...(() => { const f = bestFocus(["industry"]); return { focusPrimary: [f.key], focusLabel: f.label }; })() },
-    { id: "p2", style: pick4[1], styleLabel: STYLE_LABELS[pick4[1]] || pick4[1], ...(() => { const f = bestFocus(["city", "venue", "theme", "industry"]); return { focusPrimary: [f.key], focusLabel: f.label }; })() },
-    { id: "p3", style: pick4[2], styleLabel: STYLE_LABELS[pick4[2]] || pick4[2], ...(() => { const f = bestFocus(["theme", "venue", "city", "industry"]); return { focusPrimary: [f.key], focusLabel: f.label }; })() },
-    { id: "p4", style: pick4[3], styleLabel: STYLE_LABELS[pick4[3]] || pick4[3], ...(() => { const f = bestFocus(["venue", "theme", "city", "industry"]); return { focusPrimary: [f.key], focusLabel: f.label }; })() },
-  ];
+  return pick4.map((style, i) => {
+    const f = bestFocusForStyle(style);
+    return {
+      id: `p${i + 1}`,
+      style,
+      styleLabel: STYLE_LABELS[style] || style,
+      focusPrimary: [f.key],
+      focusLabel: f.label,
+    };
+  });
 }
 
 
