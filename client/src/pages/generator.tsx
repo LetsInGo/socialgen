@@ -1348,15 +1348,6 @@ export default function GeneratorPage() {
                             </div>
                           )}
                           <p className="text-[11px] text-muted-foreground">Extraction complete — continue to review details</p>
-                          <Button
-                            type="button"
-                            className="w-full h-9"
-                            onClick={handleCompleteStep1}
-                            data-testid="button-step1-continue"
-                          >
-                            <Check className="h-4 w-4" />
-                            Continue to Confirm
-                          </Button>
                         </div>
                       )}
 
@@ -1667,15 +1658,6 @@ export default function GeneratorPage() {
                             </div>
                           </div>
 
-                          <Button
-                            type="button"
-                            className="w-full h-9"
-                            onClick={handleCompleteStep2}
-                            data-testid="button-step2-continue"
-                          >
-                            <Check className="h-4 w-4" />
-                            Looks good — continue to Pick Style
-                          </Button>
                         </>
                       ) : (
                         <div className="space-y-4">
@@ -1868,15 +1850,6 @@ export default function GeneratorPage() {
                             </div>
                           </div>
 
-                          <Button
-                            type="button"
-                            className="w-full h-9"
-                            onClick={handleCompleteStep2}
-                            data-testid="button-step2-continue-manual"
-                          >
-                            <Check className="h-4 w-4" />
-                            Continue to Pick Style
-                          </Button>
                         </div>
                       )}
                     </div>
@@ -2045,15 +2018,6 @@ export default function GeneratorPage() {
                         )}
                       />
 
-                      <Button
-                        type="button"
-                        className="w-full h-9"
-                        onClick={handleCompleteStep3}
-                        data-testid="button-step3-continue"
-                      >
-                        <Check className="h-4 w-4" />
-                        Continue to Configure
-                      </Button>
                     </div>
                   )}
                 </div>
