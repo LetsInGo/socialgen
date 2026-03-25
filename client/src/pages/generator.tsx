@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import {
-  Wand2, Download, Copy, Loader2, Sparkles, ChevronDown, ChevronUp,
+  Wand2, Download, Copy, Loader2, Sparkles, ChevronDown, ChevronUp, ChevronRight,
   Globe, Check, AlertCircle, Crosshair,
   Palette, Settings2, MapPin, FileText, RefreshCw, Zap, Image as ImageIcon,
   X, Type, ArrowUp, ArrowDown, Minus, Plus, GripHorizontal, Upload,
@@ -854,6 +854,10 @@ export default function GeneratorPage() {
   const styleObj = STYLES.find((s) => s.value === currentStyle);
   const step3Subtitle = completedSteps.has(3) ? styleObj?.label : undefined;
 
+  const showProgressFooter =
+    (activeStep === 1 && !!scrapeResult) ||
+    (activeStep >= 2 && activeStep <= 4);
+
   return (
     <div className="min-h-full bg-background">
       <input
@@ -864,7 +868,7 @@ export default function GeneratorPage() {
         onChange={handleLogoUpload}
         data-testid="input-logo-upload"
       />
-      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      <div className={cn("max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4", showProgressFooter && "pb-16")}>
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_400px] gap-6">
 
           {/* ===== PREVIEW PANEL (LEFT — sticky on desktop) ===== */}
@@ -2230,7 +2234,7 @@ export default function GeneratorPage() {
       </div>
 
       {result && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 flex justify-center pb-5 pointer-events-none">
+        <div className={cn("fixed left-0 right-0 z-50 flex justify-center pointer-events-none", showProgressFooter ? "bottom-[52px] pb-1" : "bottom-0 pb-5")}>
           <div className="pointer-events-auto flex items-center gap-3 px-4 py-2.5 rounded-full border border-border bg-background/80 backdrop-blur-md shadow-lg">
             <Button
               type="button"
@@ -2252,6 +2256,82 @@ export default function GeneratorPage() {
                 </>
               )}
             </Button>
+          </div>
+        </div>
+      )}
+
+      {showProgressFooter && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t border-border shadow-[0_-1px_8px_rgba(0,0,0,0.06)]">
+          <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between gap-4 h-[52px]">
+            <div className="hidden sm:flex items-center gap-2 min-w-0 text-xs text-muted-foreground">
+              <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[10px] font-bold flex-shrink-0">
+                {activeStep}
+              </span>
+              <span className="truncate font-medium text-foreground">
+                {["", "Extract from Website", "Confirm Details", "Pick Style", "Configure & Generate"][activeStep]}
+              </span>
+              <span className="text-muted-foreground/50">— step {activeStep} of 4</span>
+            </div>
+            <div className="flex items-center gap-2 ml-auto">
+              {activeStep === 1 && scrapeResult && (
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-9 px-4 gap-1.5"
+                  onClick={handleCompleteStep1}
+                  data-testid="button-footer-continue-step1"
+                >
+                  <Check className="h-3.5 w-3.5" />
+                  Continue to Confirm
+                </Button>
+              )}
+              {activeStep === 2 && (
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-9 px-4 gap-1.5"
+                  onClick={handleCompleteStep2}
+                  data-testid="button-footer-continue-step2"
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                  Continue to Pick Style
+                </Button>
+              )}
+              {activeStep === 3 && (
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-9 px-4 gap-1.5"
+                  onClick={handleCompleteStep3}
+                  data-testid="button-footer-continue-step3"
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                  Continue to Configure
+                </Button>
+              )}
+              {activeStep === 4 && (
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-9 px-4 gap-1.5 font-semibold"
+                  onClick={() => form.handleSubmit(onSubmit)()}
+                  disabled={mutation.isPending}
+                  data-testid="button-footer-generate"
+                >
+                  {mutation.isPending ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="h-3.5 w-3.5" />
+                      {result ? "Regenerate" : "Generate Background"}
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       )}
