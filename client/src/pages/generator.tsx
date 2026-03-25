@@ -914,11 +914,7 @@ export default function GeneratorPage() {
 
             <div
               ref={previewRef}
-              className={cn(
-                "w-full rounded-lg border border-border overflow-hidden bg-muted/20 relative",
-                "aspect-video",
-                "min-h-[280px]"
-              )}
+              className="w-full rounded-lg border border-border overflow-hidden bg-muted/20 relative aspect-video"
               data-testid="preview-area"
             >
               {mutation.isPending ? (
