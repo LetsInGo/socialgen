@@ -29,13 +29,13 @@ const INDUSTRIES = [
 ];
 
 const ASPECT_RATIOS = [
-  { value: "16:9", label: "16:9", desc: "YouTube / LinkedIn", w: 32, h: 18 },
-  { value: "9:16", label: "9:16", desc: "Story / Reel", w: 18, h: 32 },
-  { value: "1:1", label: "1:1", desc: "Square", w: 24, h: 24 },
-  { value: "4:5", label: "4:5", desc: "Instagram", w: 20, h: 25 },
-  { value: "3:2", label: "3:2", desc: "Twitter", w: 30, h: 20 },
-  { value: "2:3", label: "2:3", desc: "Pinterest", w: 20, h: 30 },
-  { value: "21:9", label: "21:9", desc: "Hero Banner", w: 42, h: 18 },
+  { value: "16:9",  shapeName: "Wide",      ratio: "16:9",  platforms: "YouTube · LinkedIn",      w: 32, h: 18 },
+  { value: "1:1",   shapeName: "Square",    ratio: "1:1",   platforms: "Instagram · Facebook",    w: 24, h: 24 },
+  { value: "4:5",   shapeName: "Portrait",  ratio: "4:5",   platforms: "Instagram Post",           w: 20, h: 25 },
+  { value: "9:16",  shapeName: "Story",     ratio: "9:16",  platforms: "Instagram · TikTok",      w: 18, h: 32 },
+  { value: "3:2",   shapeName: "Landscape", ratio: "3:2",   platforms: "Twitter · Blog",          w: 30, h: 20 },
+  { value: "2:3",   shapeName: "Tall",      ratio: "2:3",   platforms: "Pinterest",               w: 20, h: 30 },
+  { value: "21:9",  shapeName: "Banner",    ratio: "21:9",  platforms: "Website Hero",            w: 42, h: 18 },
 ];
 
 const STYLES = [
@@ -1996,26 +1996,63 @@ export default function GeneratorPage() {
                       <FormField
                         control={form.control}
                         name="aspectRatio"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs font-semibold">Aspect Ratio</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value}>
-                              <FormControl>
-                                <SelectTrigger data-testid="select-aspect-ratio" className="h-9">
-                                  <SelectValue placeholder="Select ratio" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {ASPECT_RATIOS.map((r) => (
-                                  <SelectItem key={r.value} value={r.value}>
-                                    {r.label} — {r.desc}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
+                        render={({ field }) => {
+                          const selected = ASPECT_RATIOS.find(r => r.value === field.value);
+                          return (
+                            <FormItem>
+                              <FormLabel className="text-xs font-semibold">Background Shape</FormLabel>
+                              <Select onValueChange={field.onChange} value={field.value}>
+                                <FormControl>
+                                  <SelectTrigger data-testid="select-aspect-ratio" className="h-9">
+                                    {selected ? (
+                                      <div className="flex items-center gap-2">
+                                        <svg width="18" height="18" viewBox="0 0 32 32" className="flex-shrink-0 text-muted-foreground">
+                                          <rect
+                                            x={Math.round((32 - selected.w) / 2)}
+                                            y={Math.round((32 - selected.h) / 2)}
+                                            width={selected.w}
+                                            height={selected.h}
+                                            rx="2"
+                                            fill="currentColor"
+                                            opacity="0.7"
+                                          />
+                                        </svg>
+                                        <span>{selected.shapeName}</span>
+                                        <span className="text-muted-foreground text-[11px]">{selected.ratio}</span>
+                                      </div>
+                                    ) : (
+                                      <SelectValue placeholder="Select shape" />
+                                    )}
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {ASPECT_RATIOS.map((r) => (
+                                    <SelectItem key={r.value} value={r.value} className="py-2">
+                                      <div className="flex items-center gap-3">
+                                        <svg width="24" height="24" viewBox="0 0 32 32" className="flex-shrink-0 text-muted-foreground">
+                                          <rect
+                                            x={Math.round((32 - r.w) / 2)}
+                                            y={Math.round((32 - r.h) / 2)}
+                                            width={r.w}
+                                            height={r.h}
+                                            rx="2"
+                                            fill="currentColor"
+                                            opacity="0.7"
+                                          />
+                                        </svg>
+                                        <div>
+                                          <p className="font-medium text-sm">{r.shapeName}</p>
+                                          <p className="text-[11px] text-muted-foreground">{r.ratio} · {r.platforms}</p>
+                                        </div>
+                                      </div>
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          );
+                        }}
                       />
 
                     </div>
