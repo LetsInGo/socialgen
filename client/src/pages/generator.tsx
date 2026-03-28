@@ -28,6 +28,13 @@ const INDUSTRIES = [
   "Music & Entertainment", "Non-profit / Social", "Automotive", "E-commerce / Retail",
 ];
 
+const REF_WIDTH = 1000;
+function getRefHeight(aspectRatio: string): number {
+  const parts = aspectRatio.split(":").map(Number);
+  if (parts.length === 2 && parts[0] > 0) return Math.round(REF_WIDTH * parts[1] / parts[0]);
+  return Math.round(REF_WIDTH * 9 / 16);
+}
+
 const ASPECT_RATIOS = [
   { value: "16:9",  shapeName: "Wide",      ratio: "16:9",  platforms: "YouTube · LinkedIn",      w: 32, h: 18 },
   { value: "1:1",   shapeName: "Square",    ratio: "1:1",   platforms: "Instagram · Facebook",    w: 24, h: 24 },
@@ -414,10 +421,10 @@ export default function GeneratorPage() {
 
   const computeLayout = useCallback((cw: number, ch: number, layoutId?: string) => {
     const preset = LAYOUT_PRESETS.find(l => l.id === (layoutId || "top-left")) || LAYOUT_PRESETS[0];
-    const newLogoSize = Math.round(Math.max(36, Math.min(200, cw * 0.16)));
-    const headlineFontSize = Math.round(Math.max(14, Math.min(48, cw * 0.055)));
-    const detailsFontSize = Math.round(Math.max(10, Math.min(30, cw * 0.032)));
-    const ctaFontSize = Math.round(Math.max(10, Math.min(26, cw * 0.028)));
+    const newLogoSize = Math.round(cw * 0.12);
+    const headlineFontSize = Math.round(cw * 0.042);
+    const detailsFontSize = Math.round(cw * 0.024);
+    const ctaFontSize = Math.round(cw * 0.021);
     const pad = Math.round(cw * 0.04);
     const gap = Math.round(Math.max(4, ch * 0.02));
     const logoX = Math.round(cw * preset.logo.xPct);
@@ -523,13 +530,10 @@ export default function GeneratorPage() {
       if (src) {
         setLogoSrc(src);
         setShowLogo(true);
-        if (previewRef.current) {
-          const cw = previewRef.current.clientWidth;
-          const ch = previewRef.current.clientHeight;
-          const layout = computeLayout(cw, ch, selectedLayout);
-          setLogoSize(layout.logoSize);
-          setLogoPos(layout.logoPos);
-        }
+        const rh = getRefHeight(form.getValues("aspectRatio"));
+        const layout = computeLayout(REF_WIDTH, rh, selectedLayout);
+        setLogoSize(layout.logoSize);
+        setLogoPos(layout.logoPos);
       }
     };
     reader.readAsDataURL(file);
@@ -619,11 +623,8 @@ export default function GeneratorPage() {
   useEffect(() => {
     if (prevRatio.current === selectedRatio) return;
     prevRatio.current = selectedRatio;
-    if (!previewRef.current) return;
-    const cw = previewRef.current.clientWidth;
-    const ch = previewRef.current.clientHeight;
-    if (cw <= 0 || ch <= 0) return;
-    const layout = computeLayout(cw, ch, selectedLayout);
+    const rh = getRefHeight(selectedRatio);
+    const layout = computeLayout(REF_WIDTH, rh, selectedLayout);
     const ids = ["headline", "details", "cta"];
     setTextOverlays((prev) => prev.map((o, i) => {
       const li = ids.indexOf(o.id);
@@ -638,11 +639,8 @@ export default function GeneratorPage() {
   useEffect(() => {
     if (prevLayout.current === selectedLayout) return;
     prevLayout.current = selectedLayout;
-    if (!previewRef.current) return;
-    const cw = previewRef.current.clientWidth;
-    const ch = previewRef.current.clientHeight;
-    if (cw <= 0 || ch <= 0) return;
-    const layout = computeLayout(cw, ch, selectedLayout);
+    const rh = getRefHeight(form.getValues("aspectRatio"));
+    const layout = computeLayout(REF_WIDTH, rh, selectedLayout);
     const ids = ["headline", "details", "cta"];
     setTextOverlays((prev) => prev.map((o) => {
       const li = ids.indexOf(o.id);
@@ -677,23 +675,10 @@ export default function GeneratorPage() {
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const newWidth = entry.contentRect.width;
-        const newHeight = entry.contentRect.height;
-        if (prevContainerWidth.current > 0 && newWidth > 0 && Math.abs(newWidth - prevContainerWidth.current) > 2) {
-          const scaleX = newWidth / prevContainerWidth.current;
-          const scaleY = newHeight > 0 && prevHeight.current > 0 ? newHeight / prevHeight.current : scaleX;
-          setLogoSize((s) => Math.round(Math.max(32, Math.min(300, s * scaleX))));
-          setLogoPos((p) => ({ x: Math.round(p.x * scaleX), y: Math.round(p.y * scaleY) }));
-          setTextOverlays((prev) => prev.map((o) => ({
-            ...o,
-            fontSize: Math.round(Math.max(8, Math.min(200, o.fontSize * scaleX))),
-            pos: { x: Math.round(o.pos.x * scaleX), y: Math.round(o.pos.y * scaleY) },
-          })));
-        }
         if (newWidth > 0) {
           prevContainerWidth.current = newWidth;
           setContainerWidth(newWidth);
         }
-        if (newHeight > 0) prevHeight.current = newHeight;
       }
     });
     observer.observe(previewRef.current);
@@ -704,19 +689,22 @@ export default function GeneratorPage() {
     e.preventDefault();
     logoDragging.current = true;
     const rect = (e.target as HTMLElement).closest("[data-overlay]")!.getBoundingClientRect();
-    logoDragOffset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    const initScale = previewRef.current ? previewRef.current.getBoundingClientRect().width / REF_WIDTH : 1;
+    logoDragOffset.current = { x: (e.clientX - rect.left) / initScale, y: (e.clientY - rect.top) / initScale };
     const startPos = { ...logoPos };
+    const rh = getRefHeight(form.getValues("aspectRatio"));
     const onMove = (me: MouseEvent) => {
       if (!logoDragging.current || !previewRef.current) return;
       const containerRect = previewRef.current.getBoundingClientRect();
-      let newX = Math.max(0, Math.min(me.clientX - containerRect.left - logoDragOffset.current.x, containerRect.width - logoSize));
-      let newY = Math.max(0, Math.min(me.clientY - containerRect.top - logoDragOffset.current.y, containerRect.height - logoSize));
+      const s = containerRect.width / REF_WIDTH;
+      let newX = Math.max(0, Math.min((me.clientX - containerRect.left) / s - logoDragOffset.current.x, REF_WIDTH - logoSize));
+      let newY = Math.max(0, Math.min((me.clientY - containerRect.top) / s - logoDragOffset.current.y, rh - logoSize));
       if (me.shiftKey) {
         const dx = Math.abs(newX - startPos.x);
         const dy = Math.abs(newY - startPos.y);
         if (dx > dy) { newY = startPos.y; } else { newX = startPos.x; }
       }
-      setLogoPos({ x: newX, y: newY });
+      setLogoPos({ x: Math.round(newX), y: Math.round(newY) });
     };
     const onUp = () => {
       logoDragging.current = false;
@@ -725,7 +713,7 @@ export default function GeneratorPage() {
     };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
-  }, [logoSize, logoPos]);
+  }, [logoSize, logoPos, form]);
 
   const handleLogoResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -734,8 +722,9 @@ export default function GeneratorPage() {
     logoResizeStart.current = { x: e.clientX, y: e.clientY, size: logoSize };
     const onMove = (me: MouseEvent) => {
       if (!logoResizing.current) return;
-      const delta = (me.clientX - logoResizeStart.current.x + me.clientY - logoResizeStart.current.y) / 2;
-      setLogoSize(Math.round(Math.max(16, Math.min(300, logoResizeStart.current.size + delta))));
+      const s = previewRef.current ? previewRef.current.getBoundingClientRect().width / REF_WIDTH : 1;
+      const delta = ((me.clientX - logoResizeStart.current.x + me.clientY - logoResizeStart.current.y) / 2) / s;
+      setLogoSize(Math.round(Math.max(16, Math.min(400, logoResizeStart.current.size + delta))));
     };
     const onUp = () => {
       logoResizing.current = false;
@@ -750,21 +739,24 @@ export default function GeneratorPage() {
     e.preventDefault();
     textDragging.current = true;
     const rect = (e.target as HTMLElement).closest("[data-overlay]")!.getBoundingClientRect();
-    textDragOffset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    const initScale = previewRef.current ? previewRef.current.getBoundingClientRect().width / REF_WIDTH : 1;
+    textDragOffset.current = { x: (e.clientX - rect.left) / initScale, y: (e.clientY - rect.top) / initScale };
     const overlay = textOverlays.find((o) => o.id === overlayId);
     if (!overlay) return;
     const startPos = { ...overlay.pos };
+    const rh = getRefHeight(form.getValues("aspectRatio"));
     const onMove = (me: MouseEvent) => {
       if (!textDragging.current || !previewRef.current) return;
       const containerRect = previewRef.current.getBoundingClientRect();
-      let newX = Math.max(0, Math.min(me.clientX - containerRect.left - textDragOffset.current.x, containerRect.width - 100));
-      let newY = Math.max(0, Math.min(me.clientY - containerRect.top - textDragOffset.current.y, containerRect.height - 40));
+      const s = containerRect.width / REF_WIDTH;
+      let newX = Math.max(0, Math.min((me.clientX - containerRect.left) / s - textDragOffset.current.x, REF_WIDTH - 100));
+      let newY = Math.max(0, Math.min((me.clientY - containerRect.top) / s - textDragOffset.current.y, rh - 40));
       if (me.shiftKey) {
         const dx = Math.abs(newX - startPos.x);
         const dy = Math.abs(newY - startPos.y);
         if (dx > dy) { newY = startPos.y; } else { newX = startPos.x; }
       }
-      updateOverlay(overlayId, { pos: { x: newX, y: newY } });
+      updateOverlay(overlayId, { pos: { x: Math.round(newX), y: Math.round(newY) } });
     };
     const onUp = () => {
       textDragging.current = false;
@@ -823,10 +815,8 @@ export default function GeneratorPage() {
       const eventName = data.eventName || "Event";
       const dateParts = [data.eventDates, data.city].filter(Boolean);
       const detailsText = dateParts.length > 0 ? dateParts.join(" · ") : "";
-      const el = previewRef.current;
-      const cw = el ? el.clientWidth : 400;
-      const ch = el ? el.clientHeight : 225;
-      const layout = computeLayout(cw, ch, selectedLayout);
+      const rh = getRefHeight(form.getValues("aspectRatio"));
+      const layout = computeLayout(REF_WIDTH, rh, selectedLayout);
       setTextOverlays([
         { id: "headline", text: `I'm Excited for ${eventName}`, pos: layout.overlays[0].pos, fontSize: layout.overlays[0].fontSize, color: "#ffffff", visible: true },
         { id: "details", text: detailsText || "[Dates] · [City]", pos: layout.overlays[1].pos, fontSize: layout.overlays[1].fontSize, color: "#ffffff", visible: !!detailsText },
@@ -999,9 +989,9 @@ export default function GeneratorPage() {
         return;
       }
 
-      const container = previewRef.current!;
-      const scaleX = bgImg.width / container.clientWidth;
-      const scaleY = bgImg.height / container.clientHeight;
+      const rh = getRefHeight(form.getValues("aspectRatio"));
+      const scaleX = bgImg.width / REF_WIDTH;
+      const scaleY = bgImg.height / rh;
 
       const canvasWrapText = (text: string, x: number, y: number, maxW: number, lineH: number) => {
         const words = text.split(" ");
@@ -1215,107 +1205,121 @@ export default function GeneratorPage() {
                       />
                     );
                   })()}
-                  {logoSrc && showLogo && (
-                    <div
-                      data-overlay="logo"
-                      className="absolute cursor-grab active:cursor-grabbing group"
-                      style={{ left: logoPos.x, top: logoPos.y, width: logoSize, height: logoSize }}
-                      onMouseDown={handleLogoDragStart}
-                      data-testid="logo-overlay"
-                    >
-                      <img src={logoSrc} alt="Event logo" style={{ width: logoSize, height: logoSize }} className="object-contain rounded shadow-lg pointer-events-none" draggable={false} />
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); setShowLogo(false); }}
-                        className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-background/80 border border-border flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                        data-testid="button-remove-logo"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
+                  {(() => {
+                    const scale = containerWidth > 0 ? containerWidth / REF_WIDTH : 1;
+                    const rh = getRefHeight(form.getValues("aspectRatio"));
+                    return (
                       <div
-                        className="absolute -bottom-1.5 -right-1.5 w-5 h-5 rounded bg-background/80 border border-border flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-se-resize z-10"
-                        onMouseDown={handleLogoResizeStart}
-                        data-testid="logo-resize-handle"
-                        title="Drag to resize"
+                        className="absolute inset-0 pointer-events-none"
+                        style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: REF_WIDTH, height: rh }}
                       >
-                        <GripHorizontal className="h-2.5 w-2.5 text-muted-foreground" />
+                        {logoSrc && showLogo && (
+                          <div
+                            data-overlay="logo"
+                            className="absolute cursor-grab active:cursor-grabbing group pointer-events-auto"
+                            style={{ left: logoPos.x, top: logoPos.y, width: logoSize, height: logoSize }}
+                            onMouseDown={handleLogoDragStart}
+                            data-testid="logo-overlay"
+                          >
+                            <img src={logoSrc} alt="Event logo" style={{ width: logoSize, height: logoSize }} className="object-contain rounded shadow-lg pointer-events-none" draggable={false} />
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setShowLogo(false); }}
+                              className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-background/80 border border-border flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                              style={{ transform: `scale(${1/scale})`, transformOrigin: "center" }}
+                              data-testid="button-remove-logo"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                            <div
+                              className="absolute -bottom-1.5 -right-1.5 w-5 h-5 rounded bg-background/80 border border-border flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-se-resize z-10"
+                              style={{ transform: `scale(${1/scale})`, transformOrigin: "center" }}
+                              onMouseDown={handleLogoResizeStart}
+                              data-testid="logo-resize-handle"
+                              title="Drag to resize"
+                            >
+                              <GripHorizontal className="h-2.5 w-2.5 text-muted-foreground" />
+                            </div>
+                          </div>
+                        )}
+                        {textOverlays.filter((o) => o.visible && o.text).map((o) => (
+                          <div
+                            key={o.id}
+                            data-overlay={`text-${o.id}`}
+                            className={cn(
+                              "absolute cursor-grab active:cursor-grabbing group select-none pointer-events-auto",
+                              activeOverlayId === o.id && "ring-1 ring-primary/50 rounded"
+                            )}
+                            style={{ left: o.pos.x, top: o.pos.y, maxWidth: REF_WIDTH * 0.65 }}
+                            onMouseDown={(e) => handleTextDragStart(e, o.id)}
+                            data-testid={`text-overlay-${o.id}`}
+                          >
+                            <p
+                              style={{
+                                fontSize: o.fontSize,
+                                color: o.color,
+                                fontFamily: overlayFont ? `"${overlayFont}", Inter, sans-serif` : "Inter, sans-serif",
+                                textShadow: "0 2px 8px rgba(0,0,0,0.6), 0 1px 2px rgba(0,0,0,0.9)",
+                                fontWeight: 700,
+                                lineHeight: 1.25,
+                                whiteSpace: "normal",
+                                wordBreak: "break-word",
+                                overflowWrap: "break-word",
+                                pointerEvents: "none",
+                                userSelect: "none",
+                              }}
+                              data-testid={`text-overlay-content-${o.id}`}
+                            >
+                              {o.text}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); updateOverlay(o.id, { visible: false }); if (activeOverlayId === o.id) setActiveOverlayId(null); }}
+                              className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-background/80 border border-border flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                              style={{ transform: `scale(${1/scale})`, transformOrigin: "center" }}
+                              data-testid={`button-remove-text-${o.id}`}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                        {!["top-right", "bottom-right", "split-right"].includes(selectedLayout) && (
+                          <div
+                            className="absolute pointer-events-none"
+                            style={{
+                              right: REF_WIDTH * 0.06,
+                              top: "50%",
+                              transform: "translateY(-50%)",
+                              display: "flex",
+                              flexDirection: "column",
+                              alignItems: "center",
+                              gap: REF_WIDTH * 0.015,
+                            }}
+                            data-testid="headshot-placeholder"
+                          >
+                            <div
+                              style={{
+                                width: REF_WIDTH * 0.18,
+                                height: REF_WIDTH * 0.18,
+                                borderRadius: "50%",
+                                border: `${Math.max(2, REF_WIDTH * 0.004)}px dashed rgba(255,255,255,0.5)`,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                backgroundColor: "rgba(255,255,255,0.08)",
+                              }}
+                            >
+                              <span style={{ fontSize: REF_WIDTH * 0.02, color: "rgba(255,255,255,0.5)", fontWeight: 600, textAlign: "center", lineHeight: 1.2 }}>Your<br/>Photo</span>
+                            </div>
+                            <div style={{ textAlign: "center" }}>
+                              <p style={{ fontSize: REF_WIDTH * 0.024, color: "rgba(255,255,255,0.6)", fontWeight: 700, textShadow: "0 1px 4px rgba(0,0,0,0.5)" }}>Name</p>
+                              <p style={{ fontSize: REF_WIDTH * 0.017, color: "rgba(255,255,255,0.4)", fontWeight: 500, textShadow: "0 1px 4px rgba(0,0,0,0.5)" }}>Title · Company</p>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  )}
-                  {textOverlays.filter((o) => o.visible && o.text).map((o) => (
-                    <div
-                      key={o.id}
-                      data-overlay={`text-${o.id}`}
-                      className={cn(
-                        "absolute cursor-grab active:cursor-grabbing group select-none",
-                        activeOverlayId === o.id && "ring-1 ring-primary/50 rounded"
-                      )}
-                      style={{ left: o.pos.x, top: o.pos.y, maxWidth: containerWidth > 0 ? containerWidth * 0.65 : "65%" }}
-                      onMouseDown={(e) => handleTextDragStart(e, o.id)}
-                      data-testid={`text-overlay-${o.id}`}
-                    >
-                      <p
-                        style={{
-                          fontSize: o.fontSize,
-                          color: o.color,
-                          fontFamily: overlayFont ? `"${overlayFont}", Inter, sans-serif` : "Inter, sans-serif",
-                          textShadow: "0 2px 8px rgba(0,0,0,0.6), 0 1px 2px rgba(0,0,0,0.9)",
-                          fontWeight: 700,
-                          lineHeight: 1.25,
-                          whiteSpace: "normal",
-                          wordBreak: "break-word",
-                          overflowWrap: "break-word",
-                          pointerEvents: "none",
-                          userSelect: "none",
-                        }}
-                        data-testid={`text-overlay-content-${o.id}`}
-                      >
-                        {o.text}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); updateOverlay(o.id, { visible: false }); if (activeOverlayId === o.id) setActiveOverlayId(null); }}
-                        className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-background/80 border border-border flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                        data-testid={`button-remove-text-${o.id}`}
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ))}
-                  {containerWidth > 0 && !["top-right", "bottom-right", "split-right"].includes(selectedLayout) && (
-                    <div
-                      className="absolute pointer-events-none"
-                      style={{
-                        right: containerWidth * 0.06,
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        gap: containerWidth * 0.015,
-                      }}
-                      data-testid="headshot-placeholder"
-                    >
-                      <div
-                        style={{
-                          width: containerWidth * 0.22,
-                          height: containerWidth * 0.22,
-                          borderRadius: "50%",
-                          border: `${Math.max(2, containerWidth * 0.005)}px dashed rgba(255,255,255,0.5)`,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          backgroundColor: "rgba(255,255,255,0.08)",
-                        }}
-                      >
-                        <span style={{ fontSize: containerWidth * 0.022, color: "rgba(255,255,255,0.5)", fontWeight: 600, textAlign: "center", lineHeight: 1.2 }}>Your<br/>Photo</span>
-                      </div>
-                      <div style={{ textAlign: "center" }}>
-                        <p style={{ fontSize: containerWidth * 0.028, color: "rgba(255,255,255,0.6)", fontWeight: 700, textShadow: "0 1px 4px rgba(0,0,0,0.5)" }}>Name</p>
-                        <p style={{ fontSize: containerWidth * 0.02, color: "rgba(255,255,255,0.4)", fontWeight: 500, textShadow: "0 1px 4px rgba(0,0,0,0.5)" }}>Title · Company</p>
-                      </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </>
               ) : (() => {
                 const currentStyle = form.watch("style");
