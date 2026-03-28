@@ -414,7 +414,7 @@ export default function GeneratorPage() {
 
   const computeLayout = useCallback((cw: number, ch: number, layoutId?: string) => {
     const preset = LAYOUT_PRESETS.find(l => l.id === (layoutId || "top-left")) || LAYOUT_PRESETS[0];
-    const newLogoSize = Math.round(Math.max(40, Math.min(400, cw * 0.22)));
+    const newLogoSize = Math.round(Math.max(48, Math.min(480, cw * 0.26)));
     const headlineFontSize = Math.round(Math.max(16, Math.min(86, cw * 0.07)));
     const detailsFontSize = Math.round(Math.max(11, Math.min(52, cw * 0.042)));
     const ctaFontSize = Math.round(Math.max(11, Math.min(46, cw * 0.036)));
@@ -1282,6 +1282,40 @@ export default function GeneratorPage() {
                       </button>
                     </div>
                   ))}
+                  {containerWidth > 0 && !["top-right", "bottom-right", "split-right"].includes(selectedLayout) && (
+                    <div
+                      className="absolute pointer-events-none"
+                      style={{
+                        right: containerWidth * 0.06,
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        gap: containerWidth * 0.015,
+                      }}
+                      data-testid="headshot-placeholder"
+                    >
+                      <div
+                        style={{
+                          width: containerWidth * 0.22,
+                          height: containerWidth * 0.22,
+                          borderRadius: "50%",
+                          border: `${Math.max(2, containerWidth * 0.005)}px dashed rgba(255,255,255,0.5)`,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "rgba(255,255,255,0.08)",
+                        }}
+                      >
+                        <span style={{ fontSize: containerWidth * 0.022, color: "rgba(255,255,255,0.5)", fontWeight: 600, textAlign: "center", lineHeight: 1.2 }}>Your<br/>Photo</span>
+                      </div>
+                      <div style={{ textAlign: "center" }}>
+                        <p style={{ fontSize: containerWidth * 0.028, color: "rgba(255,255,255,0.6)", fontWeight: 700, textShadow: "0 1px 4px rgba(0,0,0,0.5)" }}>Name</p>
+                        <p style={{ fontSize: containerWidth * 0.02, color: "rgba(255,255,255,0.4)", fontWeight: 500, textShadow: "0 1px 4px rgba(0,0,0,0.5)" }}>Title · Company</p>
+                      </div>
+                    </div>
+                  )}
                 </>
               ) : (() => {
                 const currentStyle = form.watch("style");
@@ -1334,81 +1368,34 @@ export default function GeneratorPage() {
                 }
 
                 if (stylePreviews.length > 0) {
-                  return (
-                    <div
-                      className="absolute inset-0"
-                      style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "auto 1fr 1fr", gap: "2px", padding: "2px" }}
-                      data-testid="style-previews-grid"
-                    >
-                      <div className="col-span-2 flex items-center justify-center gap-2 bg-black/80 backdrop-blur-sm py-1.5 px-3 rounded-sm">
-                        <span className="text-white font-bold text-sm tracking-wide">Preview of 4 Options</span>
-                        <span className="text-white/50 text-[10px]">· select one in Step 3</span>
-                      </div>
-
-                      {stylePreviews.map((p) => (
-                        <div
-                          key={p.id}
-                          className={cn(
-                            "relative overflow-hidden rounded-sm cursor-pointer transition-all",
-                            "hover:ring-1 hover:ring-primary/50"
-                          )}
-                          onClick={() => {
-                            if (p.status === "done") {
-                              setSelectedPreviewId(p.id);
-                              setUserPickedStyle(true);
-                              if (p.style) form.setValue("style", p.style);
-                            }
-                          }}
-                          data-testid={`style-preview-${p.id}`}
-                        >
-                          {p.status === "loading" ? (
-                            <div className="absolute inset-0 skeleton-shimmer" />
-                          ) : p.status === "error" ? (
-                            <div className="absolute inset-0 bg-muted/40 flex items-center justify-center">
-                              <AlertCircle className="h-5 w-5 text-muted-foreground/40" />
-                            </div>
-                          ) : (
-                            <img
-                              src={`data:${p.mimeType};base64,${p.imageData}`}
-                              alt={`${p.styleLabel} style preview`}
-                              className="absolute inset-0 w-full h-full object-cover"
+                  const firstPreview = stylePreviews[0];
+                  if (firstPreview.status === "done") {
+                    return (
+                      <>
+                        <img
+                          src={`data:${firstPreview.mimeType};base64,${firstPreview.imageData}`}
+                          alt={`${firstPreview.styleLabel} style preview`}
+                          className="w-full h-full object-cover image-reveal"
+                          data-testid="img-first-preview"
                         />
-                      )}
-
-                      {/* Scaled overlays */}
-                      {containerWidth > 0 && p.status === "done" && (showLogo && logoSrc || textOverlays.some(o => o.visible && o.text)) && (
-                        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                          <div style={{ position: "absolute", left: 0, top: 0, width: containerWidth, height: Math.round(containerWidth / (getStyleCardDimensions(form.watch("aspectRatio")).width / getStyleCardDimensions(form.watch("aspectRatio")).height)), transform: "scale(0.5)", transformOrigin: "top left" }}>
-                            {showLogo && logoSrc && (
-                              <img src={logoSrc} className="absolute object-contain" style={{ left: logoPos.x, top: logoPos.y, width: logoSize, height: logoSize }} />
-                            )}
-                            {textOverlays.filter(o => o.visible && o.text).map(o => (
-                              <div key={o.id} style={{ position: "absolute", left: o.pos.x, top: o.pos.y, fontSize: o.fontSize, color: o.color, fontFamily: overlayFont || "inherit", textShadow: "0 1px 4px rgba(0,0,0,0.6), 0 0 12px rgba(0,0,0,0.4)", fontWeight: 700, lineHeight: 1.2, whiteSpace: "pre-wrap", maxWidth: containerWidth * 0.65 }}>
-                                {o.text}
-                              </div>
-                            ))}
-                          </div>
+                        <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-black/60 backdrop-blur-sm rounded-full px-2.5 py-1">
+                          <span className="text-[11px] font-semibold text-white">{firstPreview.styleLabel}</span>
+                          <span className="text-[10px] text-white/60">preview</span>
                         </div>
-                      )}
-
-                      <div className="absolute bottom-0 left-0 right-0 px-1.5 py-1.5 bg-black/65 flex items-center justify-between">
-                        <span className="text-[11px] font-semibold text-white leading-tight">{p.styleLabel}</span>
-                        <span className="text-[10px] text-white/80 leading-tight">{p.focusLabel}</span>
+                        <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm rounded-full px-2.5 py-1">
+                          <span className="text-[10px] text-white/70">Pick a style in Step 3 →</span>
+                        </div>
+                      </>
+                    );
+                  }
+                  if (firstPreview.status === "loading" || stylePreviews.some(p => p.status === "loading")) {
+                    return (
+                      <div className="absolute inset-0 skeleton-shimmer flex flex-col items-center justify-center gap-3">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary/60" />
+                        <p className="text-xs font-medium text-foreground/80">Generating style previews...</p>
                       </div>
-                      {selectedPreviewId === p.id && (
-                        <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-primary flex items-center justify-center">
-                          <Check className="h-2.5 w-2.5 text-primary-foreground" />
-                        </div>
-                      )}
-                      {p.status === "loading" && (
-                        <div className="absolute top-1 right-1">
-                          <Loader2 className="h-3 w-3 animate-spin text-white/60" />
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                  );
+                    );
+                  }
                 }
 
                 if (scrapeResult?.screenshot) {
@@ -2305,7 +2292,7 @@ export default function GeneratorPage() {
                                     )}
                                     data-testid={`style-option-${s.value}`}
                                   >
-                                    <div className={cn("w-full aspect-[16/9] relative flex items-center justify-center overflow-hidden")}>
+                                    <div className={cn("w-full aspect-[4/3] relative flex items-center justify-center overflow-hidden")}>
                                       {hasPreview ? (
                                         <img src={`data:${preview.mimeType};base64,${preview.imageData}`} alt={s.label} className="w-full h-full object-cover" />
                                       ) : isLoading ? (
