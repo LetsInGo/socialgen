@@ -32,7 +32,8 @@ Users configure generation parameters (industry, visual style, aspect ratio, col
 - **Color palette**: 6 preset palettes + custom RGB/hex color pickers + arrow buttons to reorder colors
 - **Aspect ratios**: 7 standard social ratios in a compact dropdown (with platform labels like "YouTube / LinkedIn", "Story / Reel")
 - **Visual styles**: 6 styles in a compact dropdown (photorealistic, illustration, abstract, minimalist, gradient, editorial)
-- **Logo overlay**: Draggable event logo extracted from scraping, positioned top-left by default; composited into download; can be hidden/shown
+- **Personalization layout presets**: 6 layout options (Top Left, Top Right, Center, Bottom Left, Bottom Right, Split Right) controlling where logo and text overlays appear. Each preset uses percentage-based positioning with overlap prevention. Visual thumbnail previews in Step 3.
+- **Logo overlay**: Draggable event logo extracted from scraping, positioned by selected layout preset; composited into download; can be hidden/shown
 - **Model selection**: Nano Banana (fast) vs Nano Banana Pro (high fidelity) — in Advanced section, with contextual upsell post-generation
 - **Event theme**: Extracted from scraping (e.g. "AI & Machine Learning", "Sustainable Finance") — adds conceptual visual imagery
 - **Venue**: Extracted from scraping (e.g. "Moscone Center") — adds venue architecture

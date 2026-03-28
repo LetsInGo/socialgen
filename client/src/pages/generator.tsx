@@ -15,7 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import {
   Wand2, Download, Copy, Loader2, Sparkles, ChevronDown, ChevronUp, ChevronRight,
-  Globe, Check, AlertCircle, Crosshair,
+  Globe, Check, AlertCircle, Crosshair, LayoutGrid,
   Palette, Settings2, MapPin, FileText, RefreshCw, Zap, Image as ImageIcon,
   X, Type, ArrowUp, ArrowDown, Minus, Plus, GripHorizontal, Upload,
 } from "lucide-react";
@@ -98,6 +98,93 @@ const ASPECT_RATIO_CSS: Record<string, string> = {
   "21:9": "aspect-[21/9]",
 };
 
+interface LayoutPreset {
+  id: string;
+  label: string;
+  desc: string;
+  logo: { xPct: number; yPct: number };
+  headline: { xPct: number; yPct: number };
+  details: { xPct: number; yPct: number };
+  cta: { xPct: number; yPct: number };
+}
+
+const LAYOUT_PRESETS: LayoutPreset[] = [
+  {
+    id: "top-left",
+    label: "Top Left",
+    desc: "Logo & text top-left",
+    logo: { xPct: 0.04, yPct: 0.04 },
+    headline: { xPct: 0.04, yPct: 0.38 },
+    details: { xPct: 0.04, yPct: 0.56 },
+    cta: { xPct: 0.04, yPct: 0.70 },
+  },
+  {
+    id: "top-right",
+    label: "Top Right",
+    desc: "Logo top-right, text left",
+    logo: { xPct: 0.70, yPct: 0.04 },
+    headline: { xPct: 0.04, yPct: 0.38 },
+    details: { xPct: 0.04, yPct: 0.56 },
+    cta: { xPct: 0.04, yPct: 0.70 },
+  },
+  {
+    id: "center-stack",
+    label: "Center",
+    desc: "Everything centered",
+    logo: { xPct: 0.36, yPct: 0.06 },
+    headline: { xPct: 0.15, yPct: 0.40 },
+    details: { xPct: 0.20, yPct: 0.58 },
+    cta: { xPct: 0.30, yPct: 0.72 },
+  },
+  {
+    id: "bottom-left",
+    label: "Bottom Left",
+    desc: "Logo top, text bottom-left",
+    logo: { xPct: 0.04, yPct: 0.04 },
+    headline: { xPct: 0.04, yPct: 0.58 },
+    details: { xPct: 0.04, yPct: 0.74 },
+    cta: { xPct: 0.04, yPct: 0.86 },
+  },
+  {
+    id: "bottom-right",
+    label: "Bottom Right",
+    desc: "Logo top-left, text bottom-right",
+    logo: { xPct: 0.04, yPct: 0.04 },
+    headline: { xPct: 0.40, yPct: 0.58 },
+    details: { xPct: 0.40, yPct: 0.74 },
+    cta: { xPct: 0.40, yPct: 0.86 },
+  },
+  {
+    id: "split-right",
+    label: "Split Right",
+    desc: "Logo & text right side",
+    logo: { xPct: 0.60, yPct: 0.04 },
+    headline: { xPct: 0.50, yPct: 0.38 },
+    details: { xPct: 0.50, yPct: 0.56 },
+    cta: { xPct: 0.50, yPct: 0.70 },
+  },
+];
+
+function getStyleCardDimensions(aspectRatio: string): { width: number; height: number } {
+  const BASE = 56;
+  const ratioMap: Record<string, [number, number]> = {
+    "16:9":  [16, 9],
+    "1:1":   [1, 1],
+    "4:5":   [4, 5],
+    "9:16":  [9, 16],
+    "3:2":   [3, 2],
+    "2:3":   [2, 3],
+    "21:9":  [21, 9],
+  };
+  const [w, h] = ratioMap[aspectRatio] || [16, 9];
+  if (w >= h) {
+    return { width: BASE, height: Math.round(BASE * h / w) };
+  } else {
+    const fixedH = BASE;
+    return { width: Math.round(fixedH * w / h), height: fixedH };
+  }
+}
+
 const PRESET_PALETTES = [
   { name: "Ocean Blue", primary: "#0A84FF", secondary: "#0B1F3B", accent: "#64D2FF" },
   { name: "Emerald", primary: "#10B981", secondary: "#064E3B", accent: "#A7F3D0" },
@@ -164,9 +251,11 @@ interface TextOverlayItem {
   visible: boolean;
 }
 
+type StyleValue = ImageGenerationConfig["style"];
+
 interface StylePreviewItem {
   id: string;
-  style: string;
+  style: StyleValue;
   styleLabel: string;
   focusPrimary: string[];
   focusLabel: string;
@@ -198,12 +287,12 @@ const STYLE_FOCUS_AFFINITY: Record<string, string[]> = {
 
 function buildPreviewCombos(scrape: ScrapeResult): Array<{
   id: string;
-  style: string;
+  style: StyleValue;
   styleLabel: string;
   focusPrimary: string[];
   focusLabel: string;
 }> {
-  const detectedStyle = scrape.style || "gradient";
+  const detectedStyle: StyleValue = (scrape.style as StyleValue) || "gradient";
   const hasCity = !!scrape.city;
   const hasTheme = !!scrape.theme;
   const hasVenue = !!scrape.venue;
@@ -215,8 +304,8 @@ function buildPreviewCombos(scrape: ScrapeResult): Array<{
     theme:    { label: "Theme",    available: hasTheme },
   };
 
-  const ALL_STYLES = ["photorealistic", "editorial", "abstract", "minimalist", "gradient", "illustration"];
-  const pool = [detectedStyle, ...ALL_STYLES.filter(s => s !== detectedStyle)];
+  const ALL_STYLES: StyleValue[] = ["photorealistic", "editorial", "abstract", "minimalist", "gradient", "illustration"];
+  const pool: StyleValue[] = [detectedStyle, ...ALL_STYLES.filter(s => s !== detectedStyle)];
   const pick4 = pool.slice(0, 4);
 
   // For each style, resolve the best available focus using the style's affinity list
@@ -321,38 +410,43 @@ export default function GeneratorPage() {
   const [logoPos, setLogoPos] = useState({ x: 16, y: 16 });
   const [logoSize, setLogoSize] = useState(120);
 
-  const computeLayout = useCallback((cw: number, ch: number) => {
-    const isPortrait = ch > cw;
+  const [selectedLayout, setSelectedLayout] = useState<string>("top-left");
+
+  const computeLayout = useCallback((cw: number, ch: number, layoutId?: string) => {
+    const preset = LAYOUT_PRESETS.find(l => l.id === (layoutId || "top-left")) || LAYOUT_PRESETS[0];
+    const newLogoSize = Math.round(Math.max(32, Math.min(280, cw * 0.18)));
+    const headlineFontSize = Math.round(Math.max(12, Math.min(42, cw * 0.042)));
+    const detailsFontSize = Math.round(Math.max(9, Math.min(28, cw * 0.026)));
+    const ctaFontSize = Math.round(Math.max(9, Math.min(22, cw * 0.022)));
     const pad = Math.round(cw * 0.04);
-    const newLogoSize = Math.round(Math.max(40, Math.min(400, cw * 0.27)));
-    const logoX = pad;
-    const logoY = pad;
-    const headlineFontSize = Math.round(Math.max(12, Math.min(48, cw * 0.048)));
-    const detailsFontSize = Math.round(Math.max(9, Math.min(32, cw * 0.032)));
-    const ctaFontSize = Math.round(Math.max(9, Math.min(28, cw * 0.028)));
-    const textLeft = pad;
-    const contentTop = logoY + newLogoSize + Math.round(pad * 0.5);
-    const contentBottom = ch - pad;
-    const contentH = contentBottom - contentTop;
     const gap = Math.round(Math.max(4, ch * 0.02));
-    let headlineY: number, detailsY: number, ctaY: number;
-    if (isPortrait) {
-      const midZone = contentTop + Math.round(contentH * 0.3);
-      headlineY = midZone;
-      detailsY = headlineY + Math.round(headlineFontSize * 2.2) + gap;
-      ctaY = detailsY + Math.round(detailsFontSize * 1.4) + gap;
-    } else {
-      headlineY = contentTop;
-      detailsY = headlineY + Math.round(headlineFontSize * 2.2) + gap;
-      ctaY = detailsY + Math.round(detailsFontSize * 1.4) + gap;
+    const logoX = Math.round(cw * preset.logo.xPct);
+    const logoY = Math.round(ch * preset.logo.yPct);
+    const logoBottom = logoY + newLogoSize + pad;
+    const textSharesLogoColumn = Math.abs(preset.headline.xPct - preset.logo.xPct) < 0.3;
+
+    let headlineY = Math.round(ch * preset.headline.yPct);
+    if (textSharesLogoColumn && headlineY < logoBottom) {
+      headlineY = logoBottom;
     }
+    let detailsY = Math.round(ch * preset.details.yPct);
+    const headlineBottom = headlineY + Math.round(headlineFontSize * 2.2) + gap;
+    if (detailsY < headlineBottom) {
+      detailsY = headlineBottom;
+    }
+    let ctaY = Math.round(ch * preset.cta.yPct);
+    const detailsBottom = detailsY + Math.round(detailsFontSize * 1.4) + gap;
+    if (ctaY < detailsBottom) {
+      ctaY = detailsBottom;
+    }
+
     return {
       logoSize: newLogoSize,
       logoPos: { x: logoX, y: logoY },
       overlays: [
-        { fontSize: headlineFontSize, pos: { x: textLeft, y: headlineY } },
-        { fontSize: detailsFontSize, pos: { x: textLeft, y: detailsY } },
-        { fontSize: ctaFontSize, pos: { x: textLeft, y: ctaY } },
+        { fontSize: headlineFontSize, pos: { x: Math.round(cw * preset.headline.xPct), y: headlineY } },
+        { fontSize: detailsFontSize, pos: { x: Math.round(cw * preset.details.xPct), y: detailsY } },
+        { fontSize: ctaFontSize, pos: { x: Math.round(cw * preset.cta.xPct), y: ctaY } },
       ] as { fontSize: number; pos: { x: number; y: number } }[],
     };
   }, []);
@@ -378,66 +472,38 @@ export default function GeneratorPage() {
   const [focusLvl2, setFocusLvl2] = useState("none");
   const [focusLvl3, setFocusLvl3] = useState("none");
   const setFocusTier = (tier: 1 | 2 | 3, value: string) => {
+    const current = [focusLvl1, focusLvl2, focusLvl3];
+    if (value !== "none") {
+      const conflictIdx = current.findIndex((v, i) => v === value && i + 1 !== tier);
+      if (conflictIdx !== -1) {
+        const conflictTier = (conflictIdx + 1) as 1 | 2 | 3;
+        const oldValueOfTarget = current[tier - 1];
+        if (conflictTier === 1) {
+          const swapVal = oldValueOfTarget !== "none" ? oldValueOfTarget : "industry";
+          setFocusLvl1(swapVal); form.setValue("focusPrimary", [swapVal]);
+        }
+        if (conflictTier === 2) { setFocusLvl2(oldValueOfTarget); form.setValue("focusSecondary", oldValueOfTarget === "none" ? [] : [oldValueOfTarget]); }
+        if (conflictTier === 3) { setFocusLvl3(oldValueOfTarget); form.setValue("focusTertiary", oldValueOfTarget === "none" ? [] : [oldValueOfTarget]); }
+      }
+    }
+    if (tier === 1 && value === "none") value = "industry";
     if (tier === 1) { setFocusLvl1(value); form.setValue("focusPrimary", [value]); }
     if (tier === 2) { setFocusLvl2(value); form.setValue("focusSecondary", value === "none" ? [] : [value]); }
     if (tier === 3) { setFocusLvl3(value); form.setValue("focusTertiary", value === "none" ? [] : [value]); }
   };
 
   const [assigningColor, setAssigningColor] = useState<string | null>(null);
+  const [showManualConfig, setShowManualConfig] = useState(false);
 
   const [stylePreviews, setStylePreviews] = useState<StylePreviewItem[]>([]);
   const [selectedPreviewId, setSelectedPreviewId] = useState<string | null>(null);
+  const [userPickedStyle, setUserPickedStyle] = useState(false);
 
-  const generateStylePreviews = useCallback(async (scrape: ScrapeResult) => {
-    const combos = buildPreviewCombos(scrape);
-    setStylePreviews(combos.map(c => ({
-      id: c.id,
-      style: c.style,
-      styleLabel: c.styleLabel,
-      focusPrimary: c.focusPrimary,
-      focusLabel: c.focusLabel,
-      imageData: null,
-      mimeType: "image/png",
-      status: "loading" as const,
-    })));
-    setSelectedPreviewId(null);
+  const [adjustBlur, setAdjustBlur] = useState(0);
+  const [adjustColorRichness, setAdjustColorRichness] = useState(100);
+  const [adjustColorProminence, setAdjustColorProminence] = useState(50);
 
-    combos.forEach(async (combo) => {
-      try {
-        const config = {
-          industry: scrape.industry || "Technology / SaaS",
-          aspectRatio: "16:9",
-          style: combo.style,
-          primaryColor: scrape.primaryColor || "#0A84FF",
-          secondaryColor: scrape.secondaryColor || "#0B1F3B",
-          accentColor: scrape.accentColor || "#64D2FF",
-          focusPrimary: combo.focusPrimary,
-          focusSecondary: [],
-          focusTertiary: [],
-          colorProminence: 50,
-          city: scrape.city || "",
-          venue: scrape.venue || "",
-          theme: scrape.theme || "",
-          customPrompt: scrape.customPrompt || "",
-          model: "gemini-2.5-flash-image",
-        };
-        const res = await fetch("/api/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(config),
-        });
-        if (!res.ok) throw new Error("failed");
-        const data = await res.json();
-        setStylePreviews(prev => prev.map(p =>
-          p.id === combo.id ? { ...p, imageData: data.imageData, mimeType: data.mimeType, status: "done" } : p
-        ));
-      } catch {
-        setStylePreviews(prev => prev.map(p =>
-          p.id === combo.id ? { ...p, status: "error" } : p
-        ));
-      }
-    });
-  }, []);
+  const previewGenVersion = useRef(0);
 
   const previewRef = useRef<HTMLDivElement>(null);
   const logoDragging = useRef(false);
@@ -460,7 +526,7 @@ export default function GeneratorPage() {
         if (previewRef.current) {
           const cw = previewRef.current.clientWidth;
           const ch = previewRef.current.clientHeight;
-          const layout = computeLayout(cw, ch);
+          const layout = computeLayout(cw, ch, selectedLayout);
           setLogoSize(layout.logoSize);
           setLogoPos(layout.logoPos);
         }
@@ -468,7 +534,7 @@ export default function GeneratorPage() {
     };
     reader.readAsDataURL(file);
     e.target.value = "";
-  }, [computeLayout]);
+  }, [computeLayout, selectedLayout]);
 
   const form = useForm<ImageGenerationConfig>({
     resolver: zodResolver(imageGenerationConfigSchema),
@@ -483,6 +549,7 @@ export default function GeneratorPage() {
       focusSecondary: [] as string[],
       focusTertiary: [] as string[],
       colorProminence: 50,
+      blur: 0,
       city: "",
       venue: "",
       theme: "",
@@ -490,6 +557,61 @@ export default function GeneratorPage() {
       model: "gemini-2.5-flash-image",
     },
   });
+
+  const generateStylePreviews = useCallback(async (scrape: ScrapeResult, aspectRatio?: string) => {
+    const combos = buildPreviewCombos(scrape);
+    const ratio = aspectRatio || form.getValues("aspectRatio") || "16:9";
+    const version = ++previewGenVersion.current;
+    setStylePreviews(combos.map(c => ({
+      id: c.id,
+      style: c.style,
+      styleLabel: c.styleLabel,
+      focusPrimary: c.focusPrimary,
+      focusLabel: c.focusLabel,
+      imageData: null,
+      mimeType: "image/png",
+      status: "loading" as const,
+    })));
+    setSelectedPreviewId(null);
+
+    combos.forEach(async (combo) => {
+      try {
+        const config = {
+          industry: scrape.industry || form.getValues("industry") || "Technology / SaaS",
+          aspectRatio: ratio,
+          style: combo.style,
+          primaryColor: scrape.primaryColor || form.getValues("primaryColor") || "#0A84FF",
+          secondaryColor: scrape.secondaryColor || form.getValues("secondaryColor") || "#0B1F3B",
+          accentColor: scrape.accentColor || form.getValues("accentColor") || "#64D2FF",
+          focusPrimary: combo.focusPrimary,
+          focusSecondary: [],
+          focusTertiary: [],
+          colorProminence: 50,
+          city: scrape.city || form.getValues("city") || "",
+          venue: scrape.venue || form.getValues("venue") || "",
+          theme: scrape.theme || form.getValues("theme") || "",
+          customPrompt: scrape.customPrompt || form.getValues("customPrompt") || "",
+          model: "gemini-2.5-flash-image",
+        };
+        const res = await fetch("/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(config),
+        });
+        if (!res.ok) throw new Error("failed");
+        if (version !== previewGenVersion.current) return;
+        const data = await res.json();
+        setStylePreviews(prev => prev.map(p =>
+          p.id === combo.id ? { ...p, imageData: data.imageData, mimeType: data.mimeType, status: "done" } : p
+        ));
+      } catch {
+        if (version !== previewGenVersion.current) return;
+        setStylePreviews(prev => prev.map(p =>
+          p.id === combo.id ? { ...p, status: "error" } : p
+        ));
+      }
+    });
+  }, [form]);
 
   const selectedRatio = form.watch("aspectRatio");
   const prevRatio = useRef(selectedRatio);
@@ -501,7 +623,7 @@ export default function GeneratorPage() {
     const cw = previewRef.current.clientWidth;
     const ch = previewRef.current.clientHeight;
     if (cw <= 0 || ch <= 0) return;
-    const layout = computeLayout(cw, ch);
+    const layout = computeLayout(cw, ch, selectedLayout);
     const ids = ["headline", "details", "cta"];
     setTextOverlays((prev) => prev.map((o, i) => {
       const li = ids.indexOf(o.id);
@@ -510,7 +632,26 @@ export default function GeneratorPage() {
     }));
     setLogoSize(layout.logoSize);
     setLogoPos(layout.logoPos);
-  }, [selectedRatio, computeLayout]);
+  }, [selectedRatio, computeLayout, selectedLayout]);
+
+  const prevLayout = useRef(selectedLayout);
+  useEffect(() => {
+    if (prevLayout.current === selectedLayout) return;
+    prevLayout.current = selectedLayout;
+    if (!previewRef.current) return;
+    const cw = previewRef.current.clientWidth;
+    const ch = previewRef.current.clientHeight;
+    if (cw <= 0 || ch <= 0) return;
+    const layout = computeLayout(cw, ch, selectedLayout);
+    const ids = ["headline", "details", "cta"];
+    setTextOverlays((prev) => prev.map((o) => {
+      const li = ids.indexOf(o.id);
+      if (li === -1) return o;
+      return { ...o, fontSize: layout.overlays[li].fontSize, pos: layout.overlays[li].pos };
+    }));
+    setLogoSize(layout.logoSize);
+    setLogoPos(layout.logoPos);
+  }, [selectedLayout, computeLayout]);
 
   const colorFields: { role: ColorRole; label: string; colorKey: keyof ImageGenerationConfig; testIdColor: string; testIdInput: string; defaultFallback: string }[] = [
     { role: "primary", label: "Primary", colorKey: "primaryColor", testIdColor: "color-primary", testIdInput: "input-primary-color", defaultFallback: "#0A84FF" },
@@ -526,6 +667,7 @@ export default function GeneratorPage() {
     if (step > 1 && !completedSteps.has(1)) return;
     if (step > 2 && !completedSteps.has(2)) return;
     if (step > 3 && !completedSteps.has(3)) return;
+    if (step > 4 && !completedSteps.has(4)) return;
     setActiveStep(activeStep === step ? 0 : step);
   };
 
@@ -656,7 +798,7 @@ export default function GeneratorPage() {
         setLogoSrc(null);
       }
       if (data.industry) form.setValue("industry", data.industry);
-      if (data.style) form.setValue("style", data.style);
+      if (data.style) form.setValue("style", data.style as StyleValue);
       if (data.primaryColor) form.setValue("primaryColor", data.primaryColor);
       if (data.secondaryColor) form.setValue("secondaryColor", data.secondaryColor);
       if (data.accentColor) form.setValue("accentColor", data.accentColor);
@@ -684,7 +826,7 @@ export default function GeneratorPage() {
       const el = previewRef.current;
       const cw = el ? el.clientWidth : 400;
       const ch = el ? el.clientHeight : 225;
-      const layout = computeLayout(cw, ch);
+      const layout = computeLayout(cw, ch, selectedLayout);
       setTextOverlays([
         { id: "headline", text: `I'm Excited for ${eventName}`, pos: layout.overlays[0].pos, fontSize: layout.overlays[0].fontSize, color: "#ffffff", visible: true },
         { id: "details", text: detailsText || "[Dates] · [City]", pos: layout.overlays[1].pos, fontSize: layout.overlays[1].fontSize, color: "#ffffff", visible: !!detailsText },
@@ -695,17 +837,13 @@ export default function GeneratorPage() {
       setActiveOverlayId("headline");
       setOverlayFont(data.fontFamily || "");
 
-      completeStep(1);
-      setActiveStep(2);
-
       toast({
         title: "Website analyzed",
         description: data.eventName
-          ? `Extracted details from "${data.eventName}"`
-          : "Form auto-filled from website data",
+          ? `Extracted details from "${data.eventName}" — review and confirm below`
+          : "Form auto-filled — review and confirm below",
       });
 
-      generateStylePreviews(data);
     },
     onError: (error: any) => {
       setScrapeError(error.message || "Check the URL and try again.");
@@ -720,6 +858,7 @@ export default function GeneratorPage() {
     setScrapeError(null);
     setStylePreviews([]);
     setSelectedPreviewId(null);
+    setUserPickedStyle(false);
     scrapeMutation.mutate(eventUrl.trim());
   };
 
@@ -732,11 +871,23 @@ export default function GeneratorPage() {
   const handleCompleteStep2 = () => {
     completeStep(2);
     setActiveStep(3);
+    if (scrapeResult) {
+      generateStylePreviews(scrapeResult, form.getValues("aspectRatio"));
+    }
   };
 
   const handleCompleteStep3 = () => {
     completeStep(3);
     setActiveStep(4);
+  };
+
+  const handleCompleteStep4 = () => {
+    if (!result) {
+      form.handleSubmit(onSubmit)();
+    } else {
+      completeStep(4);
+      setActiveStep(5);
+    }
   };
 
   const mutation = useMutation({
@@ -750,6 +901,10 @@ export default function GeneratorPage() {
       setGeneratedWithModel(form.getValues("model"));
       queryClient.invalidateQueries({ queryKey: ["/api/history"] });
       completeStep(4);
+      setActiveStep(5);
+      setAdjustBlur(0);
+      setAdjustColorRichness(100);
+      setAdjustColorProminence(50);
     },
     onError: (error: any) => {
       setGenerationError(error.message || "Something went wrong. Please try again.");
@@ -793,7 +948,8 @@ export default function GeneratorPage() {
     if (!result) return;
     const activeResult = result;
     const hasOverlays = (showLogo && logoSrc) || textOverlays.some((o) => o.visible);
-    if (!hasOverlays || !previewRef.current) {
+    const hasFilters = adjustBlur > 0 || adjustColorRichness !== 100 || adjustColorProminence > 0;
+    if (!hasOverlays && !hasFilters) {
       const link = document.createElement("a");
       link.href = `data:${activeResult.mimeType};base64,${activeResult.imageData}`;
       const ratio = form.getValues("aspectRatio").replace(":", "x");
@@ -807,7 +963,42 @@ export default function GeneratorPage() {
       canvas.width = bgImg.width;
       canvas.height = bgImg.height;
       const ctx = canvas.getContext("2d")!;
+      const filterParts: string[] = [];
+      if (adjustBlur > 0) filterParts.push(`blur(${Math.round(adjustBlur * 0.12)}px)`);
+      if (adjustColorRichness !== 100) filterParts.push(`saturate(${adjustColorRichness}%)`);
+      if (filterParts.length > 0) ctx.filter = filterParts.join(" ");
       ctx.drawImage(bgImg, 0, 0);
+      ctx.filter = "none";
+
+      if (adjustColorProminence > 0) {
+        const pc = form.getValues("primaryColor") || "#0A84FF";
+        const sc = form.getValues("secondaryColor") || "#0B1F3B";
+        const ac = form.getValues("accentColor") || "#64D2FF";
+        ctx.globalAlpha = adjustColorProminence / 200;
+        ctx.globalCompositeOperation = "overlay";
+        const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+        grad.addColorStop(0, pc);
+        grad.addColorStop(0.5, sc);
+        grad.addColorStop(1, ac);
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = "source-over";
+      }
+
+      if (!hasOverlays || !previewRef.current) {
+        canvas.toBlob((blob) => {
+          if (!blob) return;
+          const link = document.createElement("a");
+          link.href = URL.createObjectURL(blob);
+          const ratio = form.getValues("aspectRatio").replace(":", "x");
+          link.download = `nanabana-${ratio}-${activeResult.id}.png`;
+          link.click();
+          URL.revokeObjectURL(link.href);
+        }, "image/png");
+        return;
+      }
+
       const container = previewRef.current!;
       const scaleX = bgImg.width / container.clientWidth;
       const scaleY = bgImg.height / container.clientHeight;
@@ -867,7 +1058,7 @@ export default function GeneratorPage() {
       }
     };
     bgImg.src = `data:${activeResult.mimeType};base64,${activeResult.imageData}`;
-  }, [result, form, showLogo, logoSrc, logoPos, logoSize, textOverlays, overlayFont]);
+  }, [result, form, showLogo, logoSrc, logoPos, logoSize, textOverlays, overlayFont, adjustBlur, adjustColorRichness, adjustColorProminence]);
 
   const copyPrompt = useCallback(() => {
     if (!result?.prompt) return;
@@ -875,20 +1066,24 @@ export default function GeneratorPage() {
     toast({ title: "Prompt copied to clipboard" });
   }, [result, toast]);
 
-  // Step subtitles
-  const step1Subtitle = scrapeResult
-    ? scrapeResult.eventName || "Website analyzed"
-    : undefined;
+  const step1Subtitle = completedSteps.has(1)
+    ? scrapeResult ? (scrapeResult.eventName || "Details confirmed") : "Manual config"
+    : scrapeResult ? scrapeResult.eventName : undefined;
 
-  const step2Subtitle = completedSteps.has(2) ? "Colors & overlays confirmed" : undefined;
+  const selectedRatioObj = ASPECT_RATIOS.find(r => r.value === form.watch("aspectRatio"));
+  const step2Subtitle = completedSteps.has(2)
+    ? `${selectedRatioObj?.shapeName || "16:9"} · ${LAYOUT_PRESETS.find(l => l.id === selectedLayout)?.label || "Top Left"}`
+    : undefined;
 
   const currentStyle = form.watch("style");
   const styleObj = STYLES.find((s) => s.value === currentStyle);
   const step3Subtitle = completedSteps.has(3) ? styleObj?.label : undefined;
 
+  const step4Subtitle = result ? "Image generated" : undefined;
+  const step5Subtitle = completedSteps.has(4) && result ? "Fine-tune your result" : undefined;
+
   const showProgressFooter =
-    (activeStep === 1 && !!scrapeResult) ||
-    (activeStep >= 2 && activeStep <= 4);
+    activeStep >= 1 && activeStep <= 5;
 
   return (
     <div className="min-h-full bg-background">
@@ -901,9 +1096,12 @@ export default function GeneratorPage() {
         data-testid="input-logo-upload"
       />
       <div className={cn("max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4", showProgressFooter && "pb-16")}>
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_400px] gap-6">
+        <div className={cn(
+          "grid gap-6",
+          activeStep === 1 ? "grid-cols-1 max-w-3xl mx-auto" : "grid-cols-1 xl:grid-cols-[1fr_420px]"
+        )}>
 
-          {/* ===== PREVIEW PANEL (LEFT — sticky on desktop) ===== */}
+          {activeStep !== 1 && (
           <div className="space-y-3 order-2 xl:order-1 xl:self-start xl:sticky xl:top-4">
             <div className="flex items-center justify-between">
               <div>
@@ -922,21 +1120,22 @@ export default function GeneratorPage() {
                 </Button>
               )}
             </div>
-            {stylePreviews.length > 0 && !result && (
+            {!result && (
               <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground px-0.5" data-testid="next-step-flow">
-                <span className="font-medium text-foreground">Next:</span>
+                <span className="font-medium text-foreground">Steps:</span>
                 {[
-                  { n: 2, label: "Confirm details" },
-                  { n: 3, label: "Pick style" },
-                  { n: 4, label: "Configure & generate" },
+                  { n: 2, label: "Layout" },
+                  { n: 3, label: "Style" },
+                  { n: 4, label: "Generate" },
+                  { n: 5, label: "Adjust" },
                 ].map((s, i) => (
                   <span key={s.n} className="flex items-center gap-1">
                     {i > 0 && <span className="text-border">→</span>}
                     <span className={cn(
                       "flex items-center gap-1 px-1.5 py-0.5 rounded-full",
-                      activeStep === s.n ? "bg-primary/15 text-primary font-medium" : "text-muted-foreground"
+                      activeStep === s.n ? "bg-primary/15 text-primary font-medium" : completedSteps.has(s.n) ? "text-foreground" : "text-muted-foreground"
                     )}>
-                      <span className="w-3.5 h-3.5 rounded-full bg-muted flex items-center justify-center text-[8px] font-bold leading-none">{s.n}</span>
+                      <span className={cn("w-3.5 h-3.5 rounded-full flex items-center justify-center text-[8px] font-bold leading-none", completedSteps.has(s.n) ? "bg-primary text-primary-foreground" : "bg-muted")}>{completedSteps.has(s.n) ? "✓" : s.n}</span>
                       {s.label}
                     </span>
                   </span>
@@ -946,7 +1145,7 @@ export default function GeneratorPage() {
 
             <div
               ref={previewRef}
-              className="w-full rounded-lg border border-border overflow-hidden bg-muted/20 relative aspect-video"
+              className={cn("w-full rounded-lg border border-border overflow-hidden bg-muted/20 relative max-h-[calc(100vh-6rem)]", ASPECT_RATIO_CSS[form.watch("aspectRatio")] || "aspect-video")}
               data-testid="preview-area"
             >
               {mutation.isPending ? (
@@ -989,8 +1188,33 @@ export default function GeneratorPage() {
                     src={`data:${result.mimeType};base64,${result.imageData}`}
                     alt="Generated social background"
                     className="w-full h-full object-cover image-reveal"
+                    style={{
+                      filter: [
+                        adjustBlur > 0 ? `blur(${Math.round(adjustBlur * 0.12)}px)` : "",
+                        adjustColorRichness !== 100 ? `saturate(${adjustColorRichness}%)` : "",
+                      ].filter(Boolean).join(" ") || undefined,
+                      transition: "filter 0.2s ease",
+                    }}
                     data-testid="img-generated"
                   />
+                  {adjustColorProminence > 0 && (() => {
+                    const pc = form.getValues("primaryColor") || "#0A84FF";
+                    const sc = form.getValues("secondaryColor") || "#0B1F3B";
+                    const ac = form.getValues("accentColor") || "#64D2FF";
+                    const opacity = adjustColorProminence / 200;
+                    return (
+                      <div
+                        className="absolute inset-0 pointer-events-none"
+                        style={{
+                          background: `linear-gradient(135deg, ${pc} 0%, ${sc} 50%, ${ac} 100%)`,
+                          opacity,
+                          mixBlendMode: "overlay",
+                          transition: "opacity 0.2s ease",
+                        }}
+                        data-testid="brand-prominence-overlay"
+                      />
+                    );
+                  })()}
                   {logoSrc && showLogo && (
                     <div
                       data-overlay="logo"
@@ -1059,49 +1283,102 @@ export default function GeneratorPage() {
                     </div>
                   ))}
                 </>
-              ) : stylePreviews.length > 0 ? (
-                <div
-                  className="absolute inset-0"
-                  style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "auto 1fr 1fr", gap: "2px", padding: "2px" }}
-                  data-testid="style-previews-grid"
-                >
-                  {/* Header spanning both columns */}
-                  <div className="col-span-2 flex items-center justify-center gap-2 bg-black/80 backdrop-blur-sm py-1.5 px-3 rounded-sm">
-                    <span className="text-white font-bold text-sm tracking-wide">Preview of 4 Options</span>
-                    <span className="text-white/50 text-[10px]">· select one in Step 3</span>
-                  </div>
+              ) : (() => {
+                const currentStyle = form.watch("style");
+                const matchedPreview = selectedPreviewId
+                  ? stylePreviews.find(p => p.id === selectedPreviewId && p.status === "done")
+                  : (userPickedStyle && currentStyle)
+                    ? stylePreviews.find(p => p.style === currentStyle && p.status === "done")
+                    : null;
+                const styleObj = STYLES.find(s => s.value === currentStyle);
 
-                  {/* 4 preview cards — auto-placed into the two 1fr rows */}
-                  {stylePreviews.map((p) => (
-                    <div
-                      key={p.id}
-                      className={cn(
-                        "relative overflow-hidden rounded-sm cursor-pointer transition-all",
-                        selectedPreviewId === p.id
-                          ? "ring-2 ring-primary ring-offset-1 ring-offset-background"
-                          : "hover:ring-1 hover:ring-primary/50"
+                if (matchedPreview) {
+                  return (
+                    <>
+                      <img
+                        src={`data:${matchedPreview.mimeType};base64,${matchedPreview.imageData}`}
+                        alt={`${matchedPreview.styleLabel} style preview`}
+                        className="w-full h-full object-cover image-reveal"
+                        data-testid="img-selected-style-preview"
+                      />
+                      <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-black/60 backdrop-blur-sm rounded-full px-2.5 py-1">
+                        <Check className="h-3 w-3 text-primary" />
+                        <span className="text-[11px] font-semibold text-white">{matchedPreview.styleLabel}</span>
+                        <span className="text-[10px] text-white/60">selected</span>
+                      </div>
+                      {selectedPreviewId && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPreviewId(null)}
+                          className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm rounded-full px-2.5 py-1 text-[10px] text-white/80 hover:text-white transition-colors"
+                          data-testid="button-back-to-grid"
+                        >
+                          ← All options
+                        </button>
                       )}
-                      onClick={() => p.status === "done" && setSelectedPreviewId(p.id)}
-                      data-testid={`style-preview-${p.id}`}
-                    >
-                      {p.status === "loading" ? (
-                        <div className="absolute inset-0 skeleton-shimmer" />
-                      ) : p.status === "error" ? (
-                        <div className="absolute inset-0 bg-muted/40 flex items-center justify-center">
-                          <AlertCircle className="h-5 w-5 text-muted-foreground/40" />
+                    </>
+                  );
+                }
+
+                if (userPickedStyle && currentStyle && styleObj) {
+                  return (
+                    <div className="absolute inset-0 flex items-center justify-center" data-testid="style-gradient-placeholder">
+                      <div className={cn("w-full h-full bg-gradient-to-br", styleObj.gradient || "from-slate-800 to-gray-700", "flex items-center justify-center")}>
+                        <div className="text-center">
+                          <p className="text-white/90 text-sm font-semibold">{styleObj.label}</p>
+                          <p className="text-white/60 text-xs mt-1">Selected style</p>
                         </div>
-                      ) : (
-                        <img
-                          src={`data:${p.mimeType};base64,${p.imageData}`}
-                          alt={`${p.styleLabel} style preview`}
-                          className="absolute inset-0 w-full h-full object-cover"
+                      </div>
+                    </div>
+                  );
+                }
+
+                if (stylePreviews.length > 0) {
+                  return (
+                    <div
+                      className="absolute inset-0"
+                      style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "auto 1fr 1fr", gap: "2px", padding: "2px" }}
+                      data-testid="style-previews-grid"
+                    >
+                      <div className="col-span-2 flex items-center justify-center gap-2 bg-black/80 backdrop-blur-sm py-1.5 px-3 rounded-sm">
+                        <span className="text-white font-bold text-sm tracking-wide">Preview of 4 Options</span>
+                        <span className="text-white/50 text-[10px]">· select one in Step 3</span>
+                      </div>
+
+                      {stylePreviews.map((p) => (
+                        <div
+                          key={p.id}
+                          className={cn(
+                            "relative overflow-hidden rounded-sm cursor-pointer transition-all",
+                            "hover:ring-1 hover:ring-primary/50"
+                          )}
+                          onClick={() => {
+                            if (p.status === "done") {
+                              setSelectedPreviewId(p.id);
+                              setUserPickedStyle(true);
+                              if (p.style) form.setValue("style", p.style);
+                            }
+                          }}
+                          data-testid={`style-preview-${p.id}`}
+                        >
+                          {p.status === "loading" ? (
+                            <div className="absolute inset-0 skeleton-shimmer" />
+                          ) : p.status === "error" ? (
+                            <div className="absolute inset-0 bg-muted/40 flex items-center justify-center">
+                              <AlertCircle className="h-5 w-5 text-muted-foreground/40" />
+                            </div>
+                          ) : (
+                            <img
+                              src={`data:${p.mimeType};base64,${p.imageData}`}
+                              alt={`${p.styleLabel} style preview`}
+                              className="absolute inset-0 w-full h-full object-cover"
                         />
                       )}
 
                       {/* Scaled overlays */}
                       {containerWidth > 0 && p.status === "done" && (showLogo && logoSrc || textOverlays.some(o => o.visible && o.text)) && (
                         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                          <div style={{ position: "absolute", left: 0, top: 0, width: containerWidth, height: Math.round(containerWidth * 9 / 16), transform: "scale(0.5)", transformOrigin: "top left" }}>
+                          <div style={{ position: "absolute", left: 0, top: 0, width: containerWidth, height: Math.round(containerWidth / (getStyleCardDimensions(form.watch("aspectRatio")).width / getStyleCardDimensions(form.watch("aspectRatio")).height)), transform: "scale(0.5)", transformOrigin: "top left" }}>
                             {showLogo && logoSrc && (
                               <img src={logoSrc} className="absolute object-contain" style={{ left: logoPos.x, top: logoPos.y, width: logoSize, height: logoSize }} />
                             )}
@@ -1131,29 +1408,37 @@ export default function GeneratorPage() {
                     </div>
                   ))}
                 </div>
-              ) : scrapeResult?.screenshot ? (
-                <>
-                  <img
-                    src={`data:image/png;base64,${scrapeResult.screenshot}`}
-                    alt="Website screenshot"
-                    className="w-full h-full object-cover opacity-80"
-                    data-testid="img-screenshot-preview"
-                  />
-                  <div className="absolute top-2 right-2 bg-background/80 border border-border rounded px-2 py-1 text-[10px] text-muted-foreground">
-                    Website screenshot
+                  );
+                }
+
+                if (scrapeResult?.screenshot) {
+                  return (
+                    <>
+                      <img
+                        src={`data:image/png;base64,${scrapeResult.screenshot}`}
+                        alt="Website screenshot"
+                        className="w-full h-full object-cover opacity-80"
+                        data-testid="img-screenshot-preview"
+                      />
+                      <div className="absolute top-2 right-2 bg-background/80 border border-border rounded px-2 py-1 text-[10px] text-muted-foreground">
+                        Website screenshot
+                      </div>
+                    </>
+                  );
+                }
+
+                return (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-muted-foreground">
+                    <div className="w-14 h-14 rounded-full bg-muted/50 flex items-center justify-center">
+                      <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-medium" data-testid="text-empty-state">Your generated image will appear here</p>
+                      <p className="text-xs mt-1 opacity-60">Start by pasting an event URL in Step 1</p>
+                    </div>
                   </div>
-                </>
-              ) : (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-muted-foreground">
-                  <div className="w-14 h-14 rounded-full bg-muted/50 flex items-center justify-center">
-                    <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
-                  </div>
-                  <div className="text-center">
-                    <p className="text-sm font-medium" data-testid="text-empty-state">Your generated image will appear here</p>
-                    <p className="text-xs mt-1 opacity-60">Start by pasting an event URL in Step 1</p>
-                  </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
 
             {/* Overlay restore buttons */}
@@ -1256,17 +1541,27 @@ export default function GeneratorPage() {
               </div>
             )}
           </div>
+          )}
 
-          {/* ===== STEPPER PANEL (RIGHT — scrolls independently) ===== */}
-          <div className="order-1 xl:order-2 xl:max-h-[calc(100vh-5rem)] xl:overflow-y-auto">
+          {/* ===== STEPPER PANEL ===== */}
+          <div className={cn(
+            activeStep === 1 ? "" : "order-1 xl:order-2 xl:max-h-[calc(100vh-5rem)] xl:overflow-y-auto"
+          )}>
             <Form {...form}>
               <form onSubmit={(e) => { if (activeStep !== 4) { e.preventDefault(); return; } form.handleSubmit(onSubmit)(e); }} className="space-y-2">
 
-                {/* ====== STEP 1: EXTRACT ====== */}
+                {activeStep === 1 && (
+                  <div className="mb-4">
+                    <h1 className="text-lg font-bold tracking-tight" data-testid="text-page-title-step1">InGo — Social Background Generator</h1>
+                    <p className="text-xs text-muted-foreground">Extract event details and confirm before designing your image</p>
+                  </div>
+                )}
+
+                {/* ====== STEP 1: EXTRACT & CONFIRM ====== */}
                 <div className="border border-border rounded-lg overflow-hidden" data-testid="step-1">
                   <StepHeader
                     stepNum={1}
-                    title="Extract from Website"
+                    title="Extract & Confirm"
                     subtitle={step1Subtitle}
                     isComplete={completedSteps.has(1)}
                     isActive={activeStep === 1}
@@ -1319,84 +1614,21 @@ export default function GeneratorPage() {
                       </div>
 
                       {scrapeResult && (
-                        <div className="space-y-2">
+                        <>
                           <Separator />
                           <div className="flex items-center gap-2">
                             <Check className="h-4 w-4 text-primary" />
                             <p className="text-xs font-medium" data-testid="text-event-name">{scrapeResult.eventName || "Website analyzed"}</p>
                           </div>
-                          {scrapeResult.industry && (
-                            <div className="flex items-center gap-2 text-[11px]">
-                              <span className="text-muted-foreground">Industry:</span>
-                              <span className="font-medium text-foreground" data-testid="text-extracted-industry">{scrapeResult.industry}</span>
+                          {scrapeResult.summary && (
+                            <p className="text-[11px] text-muted-foreground">{scrapeResult.summary}</p>
+                          )}
+                          {scrapeResult.fontFamily && (
+                            <div className="flex items-center gap-1.5">
+                              <Type className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-[11px] text-muted-foreground">Font detected: <span className="font-medium text-foreground">{scrapeResult.fontFamily}</span></span>
                             </div>
                           )}
-                          {scrapeResult.allColors && scrapeResult.allColors.length > 0 && (
-                            <div className="flex items-center gap-2">
-                              <span className="text-[11px] text-muted-foreground">Colors:</span>
-                              <div className="flex gap-1">
-                                {scrapeResult.allColors.slice(0, 5).map((c, i) => (
-                                  <div
-                                    key={i}
-                                    className="w-5 h-5 rounded border border-border"
-                                    style={{ backgroundColor: c.hex }}
-                                    title={c.hex}
-                                    data-testid={`step1-color-${i}`}
-                                  />
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          <p className="text-[11px] text-muted-foreground">Extraction complete — continue to review details</p>
-                        </div>
-                      )}
-
-                      {!scrapeResult && !scrapeMutation.isPending && (
-                        <div className="space-y-2">
-                          <Separator />
-                          <p className="text-[11px] text-muted-foreground">Or skip extraction and configure manually</p>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="w-full h-8 text-xs"
-                            onClick={() => { completeStep(1); setActiveStep(2); }}
-                            data-testid="button-skip-extraction"
-                          >
-                            Skip — configure manually
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* ====== STEP 2: CONFIRM ====== */}
-                <div className="border border-border rounded-lg overflow-hidden" data-testid="step-2">
-                  <StepHeader
-                    stepNum={2}
-                    title="Confirm"
-                    subtitle={step2Subtitle}
-                    isComplete={completedSteps.has(2)}
-                    isActive={activeStep === 2}
-                    isLocked={!completedSteps.has(1) && activeStep !== 2}
-                    onClick={() => goToStep(2)}
-                  />
-                  {activeStep === 2 && (
-                    <div className="px-4 pb-4 border-t border-border pt-4 space-y-4">
-                      {scrapeResult ? (
-                        <>
-                          <div className="space-y-1">
-                            <p className="text-xs font-semibold" data-testid="text-confirm-event-name">{scrapeResult.eventName}</p>
-                            {scrapeResult.summary && (
-                              <p className="text-[11px] text-muted-foreground">{scrapeResult.summary}</p>
-                            )}
-                            {scrapeResult.fontFamily && (
-                              <div className="flex items-center gap-1.5 mt-1">
-                                <Type className="h-3 w-3 text-muted-foreground" />
-                                <span className="text-[11px] text-muted-foreground">Font detected: <span className="font-medium text-foreground">{scrapeResult.fontFamily}</span></span>
-                              </div>
-                            )}
-                          </div>
 
                           <div>
                             <p className="text-xs font-semibold mb-2">Brand Colors</p>
@@ -1657,11 +1889,28 @@ export default function GeneratorPage() {
                               </div>
                             </div>
                           </div>
-
                         </>
-                      ) : (
+                      )}
+
+                      {!scrapeResult && !scrapeMutation.isPending && !showManualConfig && (
+                        <div className="pt-3">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="w-full text-xs"
+                            onClick={() => setShowManualConfig(true)}
+                            data-testid="btn-show-manual-config"
+                          >
+                            No URL? Configure manually
+                          </Button>
+                        </div>
+                      )}
+
+                      {!scrapeResult && !scrapeMutation.isPending && showManualConfig && (
                         <div className="space-y-4">
-                          <p className="text-xs text-muted-foreground">No extraction data — configure manually below.</p>
+                          <Separator />
+                          <p className="text-xs text-muted-foreground">Configure your event details manually.</p>
 
                           <div className="space-y-2">
                             <FormField
@@ -1849,150 +2098,25 @@ export default function GeneratorPage() {
                               ))}
                             </div>
                           </div>
-
                         </div>
                       )}
                     </div>
                   )}
                 </div>
 
-                {/* ====== STEP 3: PICK STYLE ====== */}
-                <div className="border border-border rounded-lg overflow-hidden" data-testid="step-3">
+                {/* ====== STEP 2: SELECT LAYOUT ====== */}
+                <div className="border border-border rounded-lg overflow-hidden" data-testid="step-2">
                   <StepHeader
-                    stepNum={3}
-                    title="Pick Style"
-                    subtitle={step3Subtitle}
-                    isComplete={completedSteps.has(3)}
-                    isActive={activeStep === 3}
-                    isLocked={!completedSteps.has(2) && activeStep !== 3}
-                    onClick={() => goToStep(3)}
+                    stepNum={2}
+                    title="Select Layout"
+                    subtitle={step2Subtitle}
+                    isComplete={completedSteps.has(2)}
+                    isActive={activeStep === 2}
+                    isLocked={!completedSteps.has(1) && activeStep !== 2}
+                    onClick={() => goToStep(2)}
                   />
-                  {activeStep === 3 && (
+                  {activeStep === 2 && (
                     <div className="px-4 pb-4 border-t border-border pt-4 space-y-4">
-
-                      {stylePreviews.length > 0 ? (
-                        <div className="space-y-2">
-                          <p className="text-[11px] text-muted-foreground">Select a style from the previews on the left — or choose from the list below</p>
-                          <div className="space-y-1.5">
-                            {stylePreviews.map((p) => {
-                              const isSelected = selectedPreviewId === p.id || form.watch("style") === p.style;
-                              return (
-                                <button
-                                  key={p.id}
-                                  type="button"
-                                  onClick={() => {
-                                    if (p.status !== "done") return;
-                                    setSelectedPreviewId(p.id);
-                                    form.setValue("style", p.style);
-                                    form.setValue("focusPrimary", p.focusPrimary);
-                                    setFocusLvl1(p.focusPrimary[0] || "industry");
-                                    setFocusLvl2("none");
-                                    setFocusLvl3("none");
-                                    form.setValue("focusSecondary", []);
-                                    form.setValue("focusTertiary", []);
-                                  }}
-                                  disabled={p.status === "error"}
-                                  className={cn(
-                                    "w-full flex items-center gap-3 px-3 py-2 rounded-lg border-2 text-left transition-all",
-                                    isSelected
-                                      ? "border-primary bg-primary/5"
-                                      : p.status === "loading"
-                                        ? "border-border opacity-60 cursor-wait"
-                                        : p.status === "error"
-                                          ? "border-border opacity-40 cursor-not-allowed"
-                                          : "border-border hover:border-primary/40 hover:bg-muted/30"
-                                  )}
-                                  data-testid={`pick-style-${p.id}`}
-                                >
-                                  <div className="w-14 h-9 rounded overflow-hidden flex-shrink-0 border border-border bg-muted/20">
-                                    {p.status === "done" && p.imageData ? (
-                                      <img src={`data:${p.mimeType};base64,${p.imageData}`} alt={p.styleLabel} className="w-full h-full object-cover" />
-                                    ) : p.status === "loading" ? (
-                                      <div className="w-full h-full skeleton-shimmer" />
-                                    ) : (
-                                      <div className="w-full h-full flex items-center justify-center">
-                                        <AlertCircle className="h-3 w-3 text-muted-foreground/40" />
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-semibold">{p.styleLabel}</p>
-                                    <p className="text-[10px] text-muted-foreground">Focus: {p.focusLabel}</p>
-                                  </div>
-                                  {p.status === "loading" && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground flex-shrink-0" />}
-                                  {isSelected && p.status === "done" && <Check className="h-3.5 w-3.5 text-primary flex-shrink-0" />}
-                                </button>
-                              );
-                            })}
-                          </div>
-                          <Separator />
-                          <p className="text-[10px] text-muted-foreground">Or choose any style:</p>
-                          <FormField
-                            control={form.control}
-                            name="style"
-                            render={({ field }) => (
-                              <FormItem>
-                                <div className="grid grid-cols-3 gap-1">
-                                  {STYLES.map((s) => (
-                                    <button
-                                      key={s.value}
-                                      type="button"
-                                      onClick={() => { field.onChange(s.value); setSelectedPreviewId(null); }}
-                                      className={cn(
-                                        "px-2 py-1.5 rounded border text-xs transition-colors text-left",
-                                        field.value === s.value && !stylePreviews.some(p => p.id === selectedPreviewId && p.style === s.value)
-                                          ? "border-primary bg-primary/10 text-foreground font-medium"
-                                          : "border-border text-muted-foreground hover:border-primary/40"
-                                      )}
-                                      data-testid={`style-option-${s.value}`}
-                                    >
-                                      {s.label}
-                                    </button>
-                                  ))}
-                                </div>
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-                      ) : (
-                        <FormField
-                          control={form.control}
-                          name="style"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="text-xs font-semibold">Style</FormLabel>
-                              <div className="grid grid-cols-2 gap-2">
-                                {STYLES.map((s) => (
-                                  <button
-                                    key={s.value}
-                                    type="button"
-                                    onClick={() => field.onChange(s.value)}
-                                    className={cn(
-                                      "relative rounded-lg border-2 overflow-hidden text-left transition-all",
-                                      field.value === s.value ? "border-primary ring-2 ring-primary/30" : "border-border hover:border-muted-foreground/30"
-                                    )}
-                                    data-testid={`style-option-${s.value}`}
-                                  >
-                                    <div className={cn("h-14 w-full bg-gradient-to-br", s.gradient, "relative flex items-center justify-center")}>
-                                      {field.value === s.value && (
-                                        <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center z-10">
-                                          <Check className="h-3 w-3 text-primary-foreground" />
-                                        </div>
-                                      )}
-                                    </div>
-                                    <div className="px-2 py-1.5 bg-card">
-                                      <p className="text-xs font-semibold">{s.label}</p>
-                                      <p className="text-[10px] text-muted-foreground">{s.desc}</p>
-                                    </div>
-                                  </button>
-                                ))}
-                              </div>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      )}
-
                       <FormField
                         control={form.control}
                         name="aspectRatio"
@@ -2055,25 +2179,170 @@ export default function GeneratorPage() {
                         }}
                       />
 
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <LayoutGrid className="h-3.5 w-3.5 text-muted-foreground" />
+                          <p className="text-xs font-semibold">Personalization Layout</p>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mb-2">Choose where your logo & text appear on the image</p>
+                        <div className="grid grid-cols-3 gap-2" data-testid="layout-presets">
+                          {LAYOUT_PRESETS.map((lp) => {
+                            const isSelected = selectedLayout === lp.id;
+                            return (
+                              <button
+                                key={lp.id}
+                                type="button"
+                                onClick={() => setSelectedLayout(lp.id)}
+                                className={cn(
+                                  "relative rounded-lg border-2 p-1.5 transition-all flex flex-col items-center gap-1",
+                                  isSelected ? "border-primary ring-2 ring-primary/30 bg-primary/5" : "border-border hover:border-muted-foreground/30"
+                                )}
+                                data-testid={`layout-option-${lp.id}`}
+                              >
+                                <svg width="64" height="40" viewBox="0 0 64 40" className="flex-shrink-0">
+                                  <rect x="0" y="0" width="64" height="40" rx="2" fill="currentColor" className="text-muted/30" />
+                                  <rect
+                                    x={Math.round(64 * lp.logo.xPct)}
+                                    y={Math.round(40 * lp.logo.yPct)}
+                                    width="10"
+                                    height="10"
+                                    rx="2"
+                                    fill="currentColor"
+                                    className={isSelected ? "text-primary" : "text-muted-foreground/60"}
+                                  />
+                                  <rect
+                                    x={Math.round(64 * lp.headline.xPct)}
+                                    y={Math.round(40 * lp.headline.yPct)}
+                                    width="22"
+                                    height="3"
+                                    rx="1"
+                                    fill="currentColor"
+                                    className={isSelected ? "text-primary/80" : "text-muted-foreground/40"}
+                                  />
+                                  <rect
+                                    x={Math.round(64 * lp.details.xPct)}
+                                    y={Math.round(40 * lp.details.yPct)}
+                                    width="16"
+                                    height="2"
+                                    rx="1"
+                                    fill="currentColor"
+                                    className={isSelected ? "text-primary/60" : "text-muted-foreground/30"}
+                                  />
+                                  <rect
+                                    x={Math.round(64 * lp.cta.xPct)}
+                                    y={Math.round(40 * lp.cta.yPct)}
+                                    width="12"
+                                    height="2"
+                                    rx="1"
+                                    fill="currentColor"
+                                    className={isSelected ? "text-primary/50" : "text-muted-foreground/20"}
+                                  />
+                                </svg>
+                                <span className="text-[10px] font-medium leading-tight">{lp.label}</span>
+                                {isSelected && (
+                                  <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+                                    <Check className="h-2.5 w-2.5 text-primary-foreground" />
+                                  </div>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
 
-                {/* ====== STEP 4: CONFIGURE & GENERATE ====== */}
-                <div className="border border-border rounded-lg overflow-hidden" data-testid="step-4">
+                {/* ====== STEP 3: STYLE & FOCUS ====== */}
+                <div className="border border-border rounded-lg overflow-hidden" data-testid="step-3">
                   <StepHeader
-                    stepNum={4}
-                    title="Configure & Generate"
-                    subtitle={result ? "Image generated" : undefined}
-                    isComplete={completedSteps.has(4)}
-                    isActive={activeStep === 4}
-                    isLocked={!completedSteps.has(3) && activeStep !== 4}
-                    onClick={() => goToStep(4)}
+                    stepNum={3}
+                    title="Style & Focus"
+                    subtitle={step3Subtitle}
+                    isComplete={completedSteps.has(3)}
+                    isActive={activeStep === 3}
+                    isLocked={!completedSteps.has(2) && activeStep !== 3}
+                    onClick={() => goToStep(3)}
                   />
-                  {activeStep === 4 && (
+                  {activeStep === 3 && (
                     <div className="px-4 pb-4 border-t border-border pt-4 space-y-4">
 
-                      {/* Focus Priority — three-level dropdowns */}
+                      <FormField
+                        control={form.control}
+                        name="style"
+                        render={({ field }) => {
+                          const previewMap = new Map(stylePreviews.map(p => [p.style, p]));
+                          return (
+                          <FormItem>
+                            <FormLabel className="text-xs font-semibold">Style</FormLabel>
+                            <p className="text-[11px] text-muted-foreground -mt-1">
+                              {stylePreviews.length > 0 ? "AI previews generated for top styles" : "Choose a visual style for your background"}
+                            </p>
+                            <div className="grid grid-cols-2 gap-2">
+                              {STYLES.map((s) => {
+                                const preview = previewMap.get(s.value as string);
+                                const isSelected = field.value === s.value;
+                                const hasPreview = preview?.status === "done" && preview.imageData;
+                                const isLoading = preview?.status === "loading";
+                                return (
+                                  <button
+                                    key={s.value}
+                                    type="button"
+                                    onClick={() => {
+                                      field.onChange(s.value);
+                                      setUserPickedStyle(true);
+                                      if (preview) {
+                                        setSelectedPreviewId(preview.id);
+                                        form.setValue("focusPrimary", preview.focusPrimary);
+                                        setFocusLvl1(preview.focusPrimary[0] || "industry");
+                                      } else {
+                                        setSelectedPreviewId(null);
+                                      }
+                                    }}
+                                    className={cn(
+                                      "relative rounded-lg border-2 overflow-hidden text-left transition-all",
+                                      isSelected ? "border-primary ring-2 ring-primary/30" : "border-border hover:border-muted-foreground/30"
+                                    )}
+                                    data-testid={`style-option-${s.value}`}
+                                  >
+                                    <div className={cn("w-full aspect-[16/9] relative flex items-center justify-center overflow-hidden")}>
+                                      {hasPreview ? (
+                                        <img src={`data:${preview.mimeType};base64,${preview.imageData}`} alt={s.label} className="w-full h-full object-cover" />
+                                      ) : isLoading ? (
+                                        <div className={cn("w-full h-full skeleton-shimmer bg-gradient-to-br", s.gradient)} />
+                                      ) : (
+                                        <div className={cn("w-full h-full bg-gradient-to-br", s.gradient)} />
+                                      )}
+                                      {isSelected && (
+                                        <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-primary flex items-center justify-center z-10">
+                                          <Check className="h-3 w-3 text-primary-foreground" />
+                                        </div>
+                                      )}
+                                      {isLoading && (
+                                        <div className="absolute inset-0 flex items-center justify-center">
+                                          <Loader2 className="h-4 w-4 animate-spin text-white/70" />
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="px-2 py-1.5 bg-card">
+                                      <div className="flex items-center gap-1">
+                                        <p className="text-xs font-semibold">{s.label}</p>
+                                        {hasPreview && <span className="text-[9px] bg-primary/10 text-primary px-1 rounded">AI</span>}
+                                      </div>
+                                      <p className="text-[10px] text-muted-foreground">{s.desc}</p>
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <FormMessage />
+                          </FormItem>
+                          );
+                        }}
+                      />
+
+                      <Separator />
+
                       <div>
                         <div className="flex items-center gap-2 mb-3">
                           <Crosshair className="h-3.5 w-3.5 text-muted-foreground" />
@@ -2085,8 +2354,7 @@ export default function GeneratorPage() {
                             { tier: 2 as const, label: "Supporting", desc: "Adds atmosphere (~25%)", value: focusLvl2, required: false },
                             { tier: 3 as const, label: "Subtle", desc: "Background texture (~15%)", value: focusLvl3, required: false },
                           ]).map(({ tier, label, desc, value, required }) => {
-                            const otherVals = [focusLvl1, focusLvl2, focusLvl3].filter((_, i) => i + 1 !== tier);
-                            const available = FOCUS_OPTIONS.filter((o) => !otherVals.includes(o.value));
+                            const available = FOCUS_OPTIONS;
                             return (
                               <div key={tier} className="flex items-center gap-2">
                                 <div className="w-16 shrink-0">
@@ -2112,43 +2380,24 @@ export default function GeneratorPage() {
                           })}
                         </div>
                       </div>
+                    </div>
+                  )}
+                </div>
 
-                      <FormField
-                        control={form.control}
-                        name="colorProminence"
-                        render={({ field }) => {
-                          const pv = field.value as number;
-                          const pLabel = pv <= 20 ? "Subtle tint" : pv <= 40 ? "Soft presence" : pv <= 60 ? "Balanced" : pv <= 80 ? "Bold" : "Color dominant";
-                          const pc = form.getValues("primaryColor") || "#0A84FF";
-                          const sc = form.getValues("secondaryColor") || "#0B1F3B";
-                          const ac = form.getValues("accentColor") || "#64D2FF";
-                          const pOpacity = Math.round(Math.max(10, Math.min(100, pv * 1.0)));
-                          return (
-                          <FormItem>
-                            <div className="flex items-center justify-between mb-1">
-                              <FormLabel className="text-xs font-semibold flex items-center gap-2">
-                                <Palette className="h-3.5 w-3.5 text-muted-foreground" />
-                                Brand Color Prominence
-                              </FormLabel>
-                              <span className="text-[10px] font-medium text-muted-foreground">{pLabel}</span>
-                            </div>
-                            <div
-                              className="h-6 rounded-md mb-2 border border-border overflow-hidden transition-all"
-                              style={{
-                                background: `linear-gradient(90deg, ${pc}${pOpacity.toString(16).padStart(2, "0")} 0%, ${sc}${pOpacity.toString(16).padStart(2, "0")} 50%, ${ac}${pOpacity.toString(16).padStart(2, "0")} 100%)`,
-                              }}
-                              data-testid="prominence-preview-bar"
-                            />
-                            <Slider min={0} max={100} step={5} value={[pv]} onValueChange={([v]) => field.onChange(v)} data-testid="slider-colorProminence" />
-                            <p className="text-[10px] text-muted-foreground mt-1">{pv}% — {pLabel}</p>
-                          </FormItem>
-                          );
-                        }}
-                      />
+                {/* ====== STEP 4: GENERATE ====== */}
+                <div className="border border-border rounded-lg overflow-hidden" data-testid="step-4">
+                  <StepHeader
+                    stepNum={4}
+                    title="Generate"
+                    subtitle={step4Subtitle}
+                    isComplete={completedSteps.has(4)}
+                    isActive={activeStep === 4}
+                    isLocked={!completedSteps.has(3) && activeStep !== 4}
+                    onClick={() => goToStep(4)}
+                  />
+                  {activeStep === 4 && (
+                    <div className="px-4 pb-4 border-t border-border pt-4 space-y-4">
 
-                      <Separator />
-
-                      {/* Model Selection */}
                       <FormField
                         control={form.control}
                         name="model"
@@ -2180,7 +2429,6 @@ export default function GeneratorPage() {
                         )}
                       />
 
-                      {/* Generate Button */}
                       <Button
                         type="submit"
                         size="lg"
@@ -2263,38 +2511,147 @@ export default function GeneratorPage() {
                   )}
                 </div>
 
+                {/* ====== STEP 5: ADJUST ====== */}
+                <div className="border border-border rounded-lg overflow-hidden" data-testid="step-5">
+                  <StepHeader
+                    stepNum={5}
+                    title="Adjust"
+                    subtitle={step5Subtitle}
+                    isComplete={false}
+                    isActive={activeStep === 5}
+                    isLocked={!completedSteps.has(4) && activeStep !== 5}
+                    onClick={() => goToStep(5)}
+                  />
+                  {activeStep === 5 && result && (
+                    <div className="px-4 pb-4 border-t border-border pt-4 space-y-4">
+                      <p className="text-[11px] text-muted-foreground">Fine-tune your result without generating a new image. Changes apply instantly.</p>
+
+                      {(() => {
+                        const bLabel = adjustBlur <= 10 ? "Sharp" : adjustBlur <= 30 ? "Shallow DOF" : adjustBlur <= 60 ? "Soft focus" : adjustBlur <= 80 ? "Heavily blurred" : "Full diffusion";
+                        const rLabel = adjustColorRichness <= 30 ? "Desaturated" : adjustColorRichness <= 70 ? "Muted" : adjustColorRichness <= 110 ? "Natural" : adjustColorRichness <= 150 ? "Vivid" : "Hyper-saturated";
+                        return (
+                          <>
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <label className="text-xs font-semibold flex items-center gap-1.5">
+                                  <Settings2 className="h-3 w-3 text-muted-foreground" />
+                                  Blur
+                                </label>
+                                <span className="text-[10px] text-muted-foreground">{adjustBlur}% · {bLabel}</span>
+                              </div>
+                              <Slider
+                                min={0} max={100} step={5}
+                                value={[adjustBlur]}
+                                onValueChange={([v]) => setAdjustBlur(v)}
+                                data-testid="adjust-slider-blur"
+                              />
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <label className="text-xs font-semibold flex items-center gap-1.5">
+                                  <Palette className="h-3 w-3 text-muted-foreground" />
+                                  Color Richness
+                                </label>
+                                <span className="text-[10px] text-muted-foreground">{adjustColorRichness}% · {rLabel}</span>
+                              </div>
+                              <Slider
+                                min={0} max={200} step={5}
+                                value={[adjustColorRichness]}
+                                onValueChange={([v]) => setAdjustColorRichness(v)}
+                                data-testid="adjust-slider-colorRichness"
+                              />
+                            </div>
+
+                            {(() => {
+                              const cpLabel = adjustColorProminence <= 20 ? "Subtle tint" : adjustColorProminence <= 40 ? "Soft presence" : adjustColorProminence <= 60 ? "Balanced" : adjustColorProminence <= 80 ? "Bold" : "Color dominant";
+                              const pc = form.getValues("primaryColor") || "#0A84FF";
+                              const sc = form.getValues("secondaryColor") || "#0B1F3B";
+                              const ac = form.getValues("accentColor") || "#64D2FF";
+                              const cpOpacity = Math.round(Math.max(10, Math.min(100, adjustColorProminence * 1.0)));
+                              return (
+                                <div className="space-y-1.5">
+                                  <div className="flex items-center justify-between">
+                                    <label className="text-xs font-semibold flex items-center gap-1.5">
+                                      <Palette className="h-3 w-3 text-muted-foreground" />
+                                      Brand Prominence
+                                    </label>
+                                    <span className="text-[10px] text-muted-foreground">{adjustColorProminence}% · {cpLabel}</span>
+                                  </div>
+                                  <div
+                                    className="h-5 rounded-md mb-1.5 border border-border overflow-hidden transition-all"
+                                    style={{
+                                      background: `linear-gradient(90deg, ${pc}${cpOpacity.toString(16).padStart(2, "0")} 0%, ${sc}${cpOpacity.toString(16).padStart(2, "0")} 50%, ${ac}${cpOpacity.toString(16).padStart(2, "0")} 100%)`,
+                                    }}
+                                    data-testid="adjust-prominence-preview-bar"
+                                  />
+                                  <Slider
+                                    min={0} max={100} step={5}
+                                    value={[adjustColorProminence]}
+                                    onValueChange={([v]) => setAdjustColorProminence(v)}
+                                    data-testid="adjust-slider-colorProminence"
+                                  />
+                                </div>
+                              );
+                            })()}
+                          </>
+                        );
+                      })()}
+
+                      <Separator />
+
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <LayoutGrid className="h-3.5 w-3.5 text-muted-foreground" />
+                          <p className="text-xs font-semibold">Reposition Layout</p>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mb-2">Change overlay positions without regenerating</p>
+                        <div className="grid grid-cols-3 gap-2" data-testid="adjust-layout-presets">
+                          {LAYOUT_PRESETS.map((lp) => {
+                            const isSelected = selectedLayout === lp.id;
+                            return (
+                              <button
+                                key={lp.id}
+                                type="button"
+                                onClick={() => setSelectedLayout(lp.id)}
+                                className={cn(
+                                  "relative rounded-lg border-2 p-1.5 transition-all flex flex-col items-center gap-1",
+                                  isSelected ? "border-primary ring-2 ring-primary/30 bg-primary/5" : "border-border hover:border-muted-foreground/30"
+                                )}
+                                data-testid={`adjust-layout-${lp.id}`}
+                              >
+                                <svg width="64" height="40" viewBox="0 0 64 40" className="flex-shrink-0">
+                                  <rect x="0" y="0" width="64" height="40" rx="2" fill="currentColor" className="text-muted/30" />
+                                  <rect x={Math.round(64 * lp.logo.xPct)} y={Math.round(40 * lp.logo.yPct)} width="10" height="10" rx="2" fill="currentColor" className={isSelected ? "text-primary" : "text-muted-foreground/60"} />
+                                  <rect x={Math.round(64 * lp.headline.xPct)} y={Math.round(40 * lp.headline.yPct)} width="22" height="3" rx="1" fill="currentColor" className={isSelected ? "text-primary/80" : "text-muted-foreground/40"} />
+                                  <rect x={Math.round(64 * lp.details.xPct)} y={Math.round(40 * lp.details.yPct)} width="16" height="2" rx="1" fill="currentColor" className={isSelected ? "text-primary/60" : "text-muted-foreground/30"} />
+                                  <rect x={Math.round(64 * lp.cta.xPct)} y={Math.round(40 * lp.cta.yPct)} width="12" height="2" rx="1" fill="currentColor" className={isSelected ? "text-primary/50" : "text-muted-foreground/20"} />
+                                </svg>
+                                <span className="text-[10px] font-medium leading-tight">{lp.label}</span>
+                                {isSelected && (
+                                  <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+                                    <Check className="h-2.5 w-2.5 text-primary-foreground" />
+                                  </div>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 px-2.5 py-2 rounded-md bg-muted/30 border border-border">
+                        <Settings2 className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                        <p className="text-[10px] text-muted-foreground">Drag overlays on the preview to reposition. Use the controls above for blur and color adjustments.</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
               </form>
             </Form>
           </div>
         </div>
       </div>
-
-      {result && (
-        <div className={cn("fixed left-0 right-0 z-50 flex justify-center pointer-events-none", showProgressFooter ? "bottom-[52px] pb-1" : "bottom-0 pb-5")}>
-          <div className="pointer-events-auto flex items-center gap-3 px-4 py-2.5 rounded-full border border-border bg-background/80 backdrop-blur-md shadow-lg">
-            <Button
-              type="button"
-              size="sm"
-              className="h-9 px-5 text-sm font-semibold rounded-full"
-              disabled={mutation.isPending}
-              onClick={() => form.handleSubmit(onSubmit)()}
-              data-testid="button-sticky-regenerate"
-            >
-              {mutation.isPending ? (
-                <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="h-3.5 w-3.5" />
-                  Regenerate
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
-      )}
 
       {showProgressFooter && (
         <div className="fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t border-border shadow-[0_-1px_8px_rgba(0,0,0,0.06)]">
@@ -2304,12 +2661,12 @@ export default function GeneratorPage() {
                 {activeStep}
               </span>
               <span className="truncate font-medium text-foreground">
-                {["", "Extract from Website", "Confirm Details", "Pick Style", "Configure & Generate"][activeStep]}
+                {["", "Extract & Confirm", "Select Layout", "Style & Focus", "Generate", "Adjust"][activeStep]}
               </span>
-              <span className="text-muted-foreground/50">— step {activeStep} of 4</span>
+              <span className="text-muted-foreground/50">— step {activeStep} of 5</span>
             </div>
             <div className="flex items-center gap-2 ml-auto">
-              {activeStep === 1 && scrapeResult && (
+              {activeStep === 1 && !scrapeMutation.isPending && (
                 <Button
                   type="button"
                   size="sm"
@@ -2317,8 +2674,8 @@ export default function GeneratorPage() {
                   onClick={handleCompleteStep1}
                   data-testid="button-footer-continue-step1"
                 >
-                  <Check className="h-3.5 w-3.5" />
-                  Continue to Confirm
+                  <ChevronRight className="h-3.5 w-3.5" />
+                  {scrapeResult ? "Confirm & Continue" : "Continue to Layout"}
                 </Button>
               )}
               {activeStep === 2 && (
@@ -2330,7 +2687,7 @@ export default function GeneratorPage() {
                   data-testid="button-footer-continue-step2"
                 >
                   <ChevronRight className="h-3.5 w-3.5" />
-                  Continue to Pick Style
+                  Continue to Style
                 </Button>
               )}
               {activeStep === 3 && (
@@ -2342,7 +2699,7 @@ export default function GeneratorPage() {
                   data-testid="button-footer-continue-step3"
                 >
                   <ChevronRight className="h-3.5 w-3.5" />
-                  Continue to Configure
+                  Continue to Generate
                 </Button>
               )}
               {activeStep === 4 && (
@@ -2365,6 +2722,19 @@ export default function GeneratorPage() {
                       {result ? "Regenerate" : "Generate Background"}
                     </>
                   )}
+                </Button>
+              )}
+              {activeStep === 5 && result && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-9 px-4 gap-1.5"
+                  onClick={downloadImage}
+                  data-testid="button-footer-download"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Download
                 </Button>
               )}
             </div>

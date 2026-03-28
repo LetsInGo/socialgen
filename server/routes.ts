@@ -161,6 +161,19 @@ function buildPrompt(config: z.infer<typeof imageGenerationConfigSchema>): strin
 
   sceneParts.push(`Composition: Design for text overlay on the left and space for a headshot on the right — leave generous negative space in the upper-center and lower regions for headlines. Focal interest sits at bottom-right or bottom-left, not center.`);
 
+  const blurLevel = config.blur ?? 0;
+  if (blurLevel <= 10) {
+    sceneParts.push(`Sharpness: crisp, tack-sharp focus throughout — every detail rendered with maximum precision and clarity.`);
+  } else if (blurLevel <= 30) {
+    sceneParts.push(`Sharpness: natural shallow depth of field with soft background bokeh while the primary elements remain in focus.`);
+  } else if (blurLevel <= 60) {
+    sceneParts.push(`Sharpness: dreamy soft-focus treatment with gentle blur across the scene, creating a painterly, ethereal quality.`);
+  } else if (blurLevel <= 80) {
+    sceneParts.push(`Sharpness: heavily diffused, soft and hazy throughout — all elements softened into a gentle, blurred atmospheric wash.`);
+  } else {
+    sceneParts.push(`Sharpness: maximum blur and diffusion — fully soft, abstract and out-of-focus, rendered as a pure atmospheric color field.`);
+  }
+
   sceneParts.push(`Constraints: No text, no letters, no numbers, no logos, no watermarks, no readable signage. Clean export-ready background. Professional and polished.`);
 
   sceneParts.push(`Format: ${ratioLabel}.`);

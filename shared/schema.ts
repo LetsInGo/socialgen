@@ -45,6 +45,7 @@ export const imageGenerationConfigSchema = z.object({
   focusSecondary: z.array(z.string()).optional().default([]),
   focusTertiary: z.array(z.string()).optional().default([]),
   colorProminence: z.number().min(0).max(100).optional().default(50),
+  blur: z.number().min(0).max(100).optional().default(0),
   city: z.string().optional().default(""),
   venue: z.string().optional().default(""),
   theme: z.string().optional().default(""),
