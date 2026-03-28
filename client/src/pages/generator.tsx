@@ -414,10 +414,10 @@ export default function GeneratorPage() {
 
   const computeLayout = useCallback((cw: number, ch: number, layoutId?: string) => {
     const preset = LAYOUT_PRESETS.find(l => l.id === (layoutId || "top-left")) || LAYOUT_PRESETS[0];
-    const newLogoSize = Math.round(Math.max(48, Math.min(480, cw * 0.26)));
-    const headlineFontSize = Math.round(Math.max(16, Math.min(86, cw * 0.07)));
-    const detailsFontSize = Math.round(Math.max(11, Math.min(52, cw * 0.042)));
-    const ctaFontSize = Math.round(Math.max(11, Math.min(46, cw * 0.036)));
+    const newLogoSize = Math.round(Math.max(36, Math.min(200, cw * 0.16)));
+    const headlineFontSize = Math.round(Math.max(14, Math.min(48, cw * 0.055)));
+    const detailsFontSize = Math.round(Math.max(10, Math.min(30, cw * 0.032)));
+    const ctaFontSize = Math.round(Math.max(10, Math.min(26, cw * 0.028)));
     const pad = Math.round(cw * 0.04);
     const gap = Math.round(Math.max(4, ch * 0.02));
     const logoX = Math.round(cw * preset.logo.xPct);
@@ -1098,10 +1098,10 @@ export default function GeneratorPage() {
       <div className={cn("max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4", showProgressFooter && "pb-16")}>
         <div className={cn(
           "grid gap-6",
-          activeStep === 1 ? "grid-cols-1 max-w-3xl mx-auto" : "grid-cols-1 xl:grid-cols-[1fr_420px]"
+          activeStep === 1 ? "grid-cols-1 max-w-3xl mx-auto" : result ? "grid-cols-1 xl:grid-cols-[1fr_420px]" : "grid-cols-1 max-w-2xl mx-auto"
         )}>
 
-          {activeStep !== 1 && (
+          {activeStep !== 1 && (result || mutation.isPending || generationError) && (
           <div className="space-y-3 order-2 xl:order-1 xl:self-start xl:sticky xl:top-4">
             <div className="flex items-center justify-between">
               <div>
