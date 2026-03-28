@@ -414,10 +414,10 @@ export default function GeneratorPage() {
 
   const computeLayout = useCallback((cw: number, ch: number, layoutId?: string) => {
     const preset = LAYOUT_PRESETS.find(l => l.id === (layoutId || "top-left")) || LAYOUT_PRESETS[0];
-    const newLogoSize = Math.round(Math.max(32, Math.min(280, cw * 0.18)));
-    const headlineFontSize = Math.round(Math.max(12, Math.min(42, cw * 0.042)));
-    const detailsFontSize = Math.round(Math.max(9, Math.min(28, cw * 0.026)));
-    const ctaFontSize = Math.round(Math.max(9, Math.min(22, cw * 0.022)));
+    const newLogoSize = Math.round(Math.max(40, Math.min(400, cw * 0.22)));
+    const headlineFontSize = Math.round(Math.max(16, Math.min(86, cw * 0.07)));
+    const detailsFontSize = Math.round(Math.max(11, Math.min(52, cw * 0.042)));
+    const ctaFontSize = Math.round(Math.max(11, Math.min(46, cw * 0.036)));
     const pad = Math.round(cw * 0.04);
     const gap = Math.round(Math.max(4, ch * 0.02));
     const logoX = Math.round(cw * preset.logo.xPct);
@@ -1486,7 +1486,7 @@ export default function GeneratorPage() {
                   <span className="text-[10px] font-medium text-muted-foreground w-14 truncate capitalize">{ao.id}</span>
                   <button type="button" onClick={() => updateOverlay(ao.id, { fontSize: Math.max(8, ao.fontSize - 2) })} className="w-5 h-5 rounded border border-border flex items-center justify-center hover:bg-muted" data-testid={`button-font-dec-${ao.id}`}><Minus className="h-2.5 w-2.5" /></button>
                   <span className="text-[10px] font-mono w-6 text-center" data-testid={`text-font-size-${ao.id}`}>{ao.fontSize}</span>
-                  <button type="button" onClick={() => updateOverlay(ao.id, { fontSize: Math.min(96, ao.fontSize + 2) })} className="w-5 h-5 rounded border border-border flex items-center justify-center hover:bg-muted" data-testid={`button-font-inc-${ao.id}`}><Plus className="h-2.5 w-2.5" /></button>
+                  <button type="button" onClick={() => updateOverlay(ao.id, { fontSize: Math.min(120, ao.fontSize + 2) })} className="w-5 h-5 rounded border border-border flex items-center justify-center hover:bg-muted" data-testid={`button-font-inc-${ao.id}`}><Plus className="h-2.5 w-2.5" /></button>
                   <input type="color" value={ao.color} onChange={(e) => updateOverlay(ao.id, { color: e.target.value })} className="w-5 h-5 rounded cursor-pointer border border-border flex-shrink-0" data-testid={`input-color-${ao.id}`} />
                   <Input value={ao.text} onChange={(e) => updateOverlay(ao.id, { text: e.target.value })} className="flex-1 h-6 text-[10px] px-1.5" data-testid={`input-text-${ao.id}`} />
                 </div>
