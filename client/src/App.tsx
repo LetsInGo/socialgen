@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
+import BackgroundPage from "@/pages/background";
 import GeneratorPage from "@/pages/generator";
 import HistoryPage from "@/pages/history";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -14,7 +15,8 @@ import { ThemeToggle } from "@/components/theme-toggle";
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={GeneratorPage} />
+      <Route path="/" component={BackgroundPage} />
+      <Route path="/editor" component={GeneratorPage} />
       <Route path="/history" component={HistoryPage} />
       <Route component={NotFound} />
     </Switch>
@@ -59,3 +61,4 @@ export default function App() {
     </QueryClientProvider>
   );
 }
+

@@ -35,6 +35,9 @@ export type GeneratedImage = typeof generatedImages.$inferSelect;
 export type InsertGeneratedImage = z.infer<typeof insertGeneratedImageSchema>;
 
 export const imageGenerationConfigSchema = z.object({
+  backgroundOnly: z.boolean().optional().default(false),
+  backgroundSubject: z.enum(["Event","City","Venue","Industry","Other"]).optional(),
+  referenceImage: z.object({data:z.string().max(8000000),mimeType:z.enum(["image/png","image/jpeg","image/webp"])}).optional(),
   industry: z.string().min(1, "Industry is required"),
   aspectRatio: z.enum(["1:1", "16:9", "9:16", "4:5", "3:2", "2:3", "21:9"]),
   style: z.enum(["photorealistic", "illustration", "abstract", "minimalist", "gradient", "editorial"]),
@@ -54,3 +57,4 @@ export const imageGenerationConfigSchema = z.object({
 });
 
 export type ImageGenerationConfig = z.infer<typeof imageGenerationConfigSchema>;
+

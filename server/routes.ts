@@ -102,6 +102,14 @@ function buildColorPhrase(config: z.infer<typeof imageGenerationConfigSchema>): 
 }
 
 function buildPrompt(config: z.infer<typeof imageGenerationConfigSchema>): string {
+  if(config.backgroundOnly) return [
+    "Generate a fresh photographic background for a social post.",
+    "Subject: "+config.backgroundSubject+". "+config.customPrompt,
+    "City: "+config.city+". Venue: "+config.venue+". Industry: "+config.industry+".",
+    "Use the attached image only as visual reference. Redevelop its scene, viewpoint and lighting.",
+    "Natural colors. No brand tint, gradients, text, logos, headshots or placeholder panels.",
+    "Keep natural breathing room for later composition. Format: "+config.aspectRatio
+  ].join("\\n");
   const ratioLabel = ASPECT_RATIO_LABELS[config.aspectRatio] || config.aspectRatio;
 
   const validDims = ["industry", "theme", "city", "venue", "graphic"];
@@ -398,6 +406,8 @@ Rules:
           theme: typeof parsed.theme === "string" ? parsed.theme : "",
           customPrompt: typeof parsed.customPrompt === "string" ? parsed.customPrompt : "",
           summary: typeof parsed.summary === "string" ? parsed.summary : "",
+          hashtag: (domResult.metadata.bodyText.match(/#[A-Za-z][A-Za-z0-9_]{2,60}/g)||[])[0] || "",
+          referenceImages: keyImages.filter(img=>["og-image","twitter-image"].includes(img.source)&&["image/png","image/jpeg","image/webp"].includes(img.mimeType)).map(img=>({data:img.base64,mimeType:img.mimeType})),
           screenshot: screenshotBase64,
           logo: logoData,
           fontFamily: domResult.metadata.fontFamily || null,
@@ -425,7 +435,7 @@ Rules:
 
       const response = await ai.models.generateContent({
         model: config.model,
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        contents: [{ role: "user", parts: [{ text: prompt }, ...(config.referenceImage ? [{inlineData:{data:config.referenceImage.data,mimeType:config.referenceImage.mimeType}}] : [])] }],
         config: {
           responseModalities: [Modality.TEXT, Modality.IMAGE],
         },
@@ -511,3 +521,4 @@ Rules:
 
   return httpServer;
 }
+
